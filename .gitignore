@@ -2,3 +2,5 @@ refs/videos/
 refs/analysis/*_scene.txt
 remotion/node_modules/
 remotion/out/
+blender/out/
+blender/final/
