@@ -14,7 +14,7 @@ const Cam: React.FC<{ p: V3; f: number }> = ({ p, f }) => {
     const c = camera as THREE.PerspectiveCamera;
     c.position.set(...p);
     c.fov = f;
-    c.lookAt(0, 0, 0);
+    c.lookAt(0, 0.35, 0);
     c.updateProjectionMatrix();
   }, [camera, p, f]);
   return null;
@@ -123,10 +123,72 @@ const XrayGear: React.FC = () => {
   );
 };
 
+
+// ---------- 4: simple diorama: grass-topped earth cube cut open, little tree on top
+const Dirt: React.FC = () => {
+  const layers: [number, number, string][] = [
+    // [bottom y, height, colour]
+    [-1.0, 0.35, "#3d9be9"], // groundwater
+    [-0.65, 0.4, "#9c8f80"], // gravel
+    [-0.25, 0.45, "#a9693b"], // clay
+    [0.2, 0.55, "#6b4227"], // soil
+  ];
+  return (
+    <group rotation={[0, 0, 0]}>
+      {layers.map(([y, h, c], i) => (
+        <mesh key={i} position={[0, y + h / 2, 0]}>
+          <boxGeometry args={[2, h, 2]} />
+          <meshStandardMaterial color={c} roughness={0.85} transparent={i === 0} opacity={i === 0 ? 0.92 : 1} />
+        </mesh>
+      ))}
+      {/* pebbles on the cut faces */}
+      {Array.from({ length: 26 }, (_, i) => {
+        const r = (k: number) => { const v = Math.sin(i * 91.7 + k * 13.3) * 9999.1; return v - Math.floor(v); };
+        const front = i % 2 === 0;
+        const u = (r(1) - 0.5) * 1.8, y = -0.6 + r(2) * 0.3;
+        return (
+          <mesh key={i} position={front ? [u, y, 1.0] : [1.0, y, u]} scale={[1, 0.75, 1]}>
+            <sphereGeometry args={[0.045 + r(3) * 0.04, 12, 10]} />
+            <meshStandardMaterial color={["#d2cbc1", "#7d756d", "#b6ac9f"][i % 3]} roughness={0.7} />
+          </mesh>
+        );
+      })}
+      {/* grass slab */}
+      <mesh position={[0, 0.84, 0]}>
+        <boxGeometry args={[2.08, 0.18, 2.08]} />
+        <meshStandardMaterial color="#56b947" roughness={0.8} />
+      </mesh>
+      {[-0.6, 0, 0.6].map((x, i) => (
+        <mesh key={i} position={[x, 0.932, 0]}>
+          <boxGeometry args={[0.3, 0.004, 2.08]} />
+          <meshStandardMaterial color="#68cc58" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* little tree */}
+      <mesh position={[-0.35, 1.25, -0.3]}>
+        <cylinderGeometry args={[0.07, 0.09, 0.65, 16]} />
+        <meshStandardMaterial color="#7a5032" roughness={0.85} />
+      </mesh>
+      {[[-0.35, 1.7, -0.3, 0.36], [-0.15, 1.58, -0.2, 0.26], [-0.55, 1.6, -0.38, 0.26], [-0.33, 1.95, -0.32, 0.24]].map(([x, y, z, r], i) => (
+        <mesh key={i} position={[x, y, z]}>
+          <icosahedronGeometry args={[r, 2]} />
+          <meshStandardMaterial color="#2f9e44" roughness={0.75} />
+        </mesh>
+      ))}
+      {/* a root running down the cut face */}
+      <mesh position={[-0.35, 0.55, 1.005]} rotation={[0, 0, 0.25]}>
+        <cylinderGeometry args={[0.02, 0.012, 0.6, 8]} />
+        <meshStandardMaterial color="#8a5a36" />
+      </mesh>
+    </group>
+  );
+};
+
 const VARIANTS: Record<string, { bg: string; el: React.ReactNode; cam: V3; f: number }> = {
   cutaway: { bg: "#ff6b1a", el: <Cutaway />, cam: [4.9, 4.1, 4.9], f: 30 },
   exploded: { bg: "#1e5bff", el: <Exploded />, cam: [5.6, 4.0, 5.6], f: 30 },
   xray: { bg: "#141a2e", el: <XrayGear />, cam: [0, 0, 6.6], f: 34 },
+  dirt: { bg: "#ffc531", el: <Dirt />, cam: [5.2, 4.2, 5.2], f: 30 },
 };
 
 const Clipping: React.FC = () => {
