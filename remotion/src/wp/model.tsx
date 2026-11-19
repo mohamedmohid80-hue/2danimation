@@ -47,12 +47,12 @@ export const Trunk: React.FC<{ ghost?: number }> = ({ ghost = 0 }) => {
   return (
     <group>
       <mesh geometry={geo} receiveShadow castShadow={ghost < 0.5}>
-        <meshStandardMaterial color={C.bark} roughness={0.95} transparent={ghost > 0} opacity={op} depthWrite={ghost === 0} side={ghost > 0 ? THREE.DoubleSide : THREE.FrontSide} />
+        <meshStandardMaterial key={ghost > 0 ? "ghost" : "solid"} color={C.bark} roughness={0.95} transparent={ghost > 0} opacity={op} depthWrite={ghost === 0} side={ghost > 0 ? THREE.DoubleSide : THREE.FrontSide} />
       </mesh>
       {/* peck hole */}
       <mesh position={[0.985, 0.88, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.12, 0.1, 0.06, 24]} />
-        <meshStandardMaterial color="#2a1c12" roughness={1} transparent={ghost > 0} opacity={op} />
+        <meshStandardMaterial key={ghost > 0 ? "ghost" : "solid"} color="#2a1c12" roughness={1} transparent={ghost > 0} opacity={op} />
       </mesh>
       {/* tunnel behind the hole, visible when the bark is ghosted */}
       {ghost > 0 && (
@@ -99,6 +99,9 @@ const Ellipsoid: React.FC<{ pos: V3; r: V3; color: string; rot?: V3; opacity?: n
   <mesh position={pos} scale={r} rotation={rot} castShadow={opacity === 1}>
     <sphereGeometry args={[1, 40, 28]} />
     <meshStandardMaterial
+      // keyed so switching opaque <-> see-through builds a fresh material
+      // (three.js won't recompile a reused material when `transparent` flips)
+      key={opacity < 1 ? "see-through" : "opaque"}
       color={color}
       roughness={0.6}
       transparent={opacity < 1}

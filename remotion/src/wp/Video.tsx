@@ -153,7 +153,7 @@ const SCENES: SceneDef[] = [
     peck: { rate: 2.6, flash: true, amp: 0.35 },
     bird: ({ pk }) => {
       const p = pulse(pk, 0.2);
-      return { peck: pk!.peck, xray: true, brainScale: 1.6, brainForward: 0.05 * p, brainHurt: 0.25 + 0.75 * p };
+      return { peck: pk!.peck, xray: true, brainScale: 1.6, brainForward: 0.03 + 0.1 * p, brainHurt: 0.25 + 0.75 * p };
     },
   },
   { // shrink it
