@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:M;src:url(Montserrat-900.woff2) format("woff2");font-weight:900}
+body{margin:0;display:flex;flex-wrap:wrap;gap:0;background:#000}
+.a{width:800px;height:800px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.t{font-family:M;font-weight:900;line-height:1;letter-spacing:-8px}
+svg{display:block}
+</style></head><body>
+
+<!-- 1: IF (the channel's hook word) -->
+<div class="a" id="if" style="background:#ff6b1a">
+  <div class="t" style="font-size:400px;color:#fff;letter-spacing:-6px;transform:translateY(8px)">IF</div>
+</div>
+
+<!-- 2: lightbulb -->
+<div class="a" id="bulb" style="background:#1e5bff">
+  <svg width="420" height="420" viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M50 10 C30 10 18 25 18 41 C18 53 25 60 31 66 C34 69 36 73 36 77 L64 77 C64 73 66 69 69 66 C75 60 82 53 82 41 C82 25 70 10 50 10 Z"/>
+    <path d="M38 87 L62 87"/><path d="M43 96 L57 96"/>
+  </svg>
+</div>
+
+<!-- 3: gear -->
+<div class="a" id="gear" style="background:#e8322e">
+  <svg width="440" height="440" viewBox="0 0 100 100">
+    <g fill="#fff" transform="translate(50 50)">
+      <circle r="30"/>
+      <g id="teeth">
+        <rect x="-8" y="-46" width="16" height="20" rx="3"/>
+      </g>
+      <use href="#teeth" transform="rotate(45)"/><use href="#teeth" transform="rotate(90)"/><use href="#teeth" transform="rotate(135)"/>
+      <use href="#teeth" transform="rotate(180)"/><use href="#teeth" transform="rotate(225)"/><use href="#teeth" transform="rotate(270)"/><use href="#teeth" transform="rotate(315)"/>
+      <circle r="13" fill="#e8322e"/>
+    </g>
+  </svg>
+</div>
+
+<!-- 4: question mark -->
+<div class="a" id="question" style="background:#141414">
+  <div class="t" style="font-size:560px;color:#ffd23f;letter-spacing:0;transform:translateY(20px)">?</div>
+</div>
+
+<!-- 5: spark -->
+<div class="a" id="spark" style="background:#ffd23f">
+  <svg width="440" height="440" viewBox="0 0 100 100"><path fill="#141414" d="M50 4 C54 34 66 46 96 50 C66 54 54 66 50 96 C46 66 34 54 4 50 C34 46 46 34 50 4 Z"/></svg>
+</div>
+
+<!-- 6: lightning bolt -->
+<div class="a" id="bolt" style="background:#7c3aed">
+  <svg width="400" height="400" viewBox="0 0 100 100"><path fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round" d="M58 4 L20 56 L46 56 L40 96 L80 40 L54 40 Z"/></svg>
+</div>
+
+</body></html>
