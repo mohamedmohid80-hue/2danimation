@@ -79,6 +79,59 @@ const peckAt = (t: number, start: number, rate: number, amp = 1): PeckInfo => {
 };
 const pulse = (pk: PeckInfo | null, len = 0.15) => (pk && pk.age >= 0 ? clamp01(1 - pk.age / len) : 0);
 
+/** Third eyelid timing for a chip volley launched `age` seconds ago: shuts just before the chips land. */
+const EYE_FLIGHT = 0.2;
+function eyelidAt(age: number) {
+  if (age < 0) return 0;
+  const close = clamp01((age - (EYE_FLIGHT - 0.12)) / 0.07);
+  const open = clamp01((age - (EYE_FLIGHT + 0.14)) / 0.1);
+  return close * (1 - open);
+}
+
+/** A volley of wood chips flying from the impact into the eye; deflected off the third eyelid if `deflect`. */
+const EYE_W: V3 = [BIRD_X - 0.15, 0.965, 0.31];
+const IMPACT_W: V3 = [1.0, 0.88, 0.05];
+const EyeChips: React.FC<{ age: number; seed: number; deflect: boolean }> = ({ age, seed, deflect }) => {
+  if (age < 0 || age > 0.9) return null;
+  const n = 10;
+  return (
+    <group>
+      {Array.from({ length: n }, (_, i) => {
+        const r = (k: number) => rnd(seed * 17 + i, k);
+        const a = age - r(1) * 0.05; // slight stagger
+        if (a < 0) return null;
+        const target: V3 = [EYE_W[0] + (r(2) - 0.5) * 0.05, EYE_W[1] + (r(3) - 0.5) * 0.05, EYE_W[2] + 0.01];
+        const u = a / EYE_FLIGHT;
+        let p: V3;
+        let s = 0.04 + r(4) * 0.028;
+        if (u <= 1) {
+          p = lerp3(IMPACT_W, target, u);
+          p = [p[0], p[1] + 0.07 * Math.sin(Math.PI * u), p[2]];
+        } else {
+          const b = a - EYE_FLIGHT;
+          if (deflect) {
+            // bounce off the eyelid: back out toward the camera/beak side, spinning
+            const v: V3 = [-0.45 - r(5) * 0.55, 0.45 + r(6) * 0.85, 0.12 + r(7) * 0.3];
+            p = [target[0] + v[0] * b, target[1] + v[1] * b - 2.6 * b * b, target[2] + v[2] * b];
+          } else {
+            // hit the eye and drop away
+            p = [target[0] + (r(5) - 0.5) * 0.1 * b, target[1] - 1.6 * b * b, target[2] + 0.1 * b];
+            s *= Math.max(0, 1 - b * 1.6);
+          }
+        }
+        return (
+          <mesh key={i} position={p} rotation={[r(8) * 6 + a * 14, r(9) * 6 + a * 11, r(10) * 6]}>
+            <boxGeometry args={[s * 1.6, s, s * 0.4]} />
+            <meshStandardMaterial color={C.chip} roughness={0.9} />
+          </mesh>
+        );
+      })}
+      {/* impact on the eye (ouch) or a "tink" off the eyelid */}
+      <ImpactFlash age={(age - EYE_FLIGHT) * 1.4} pos={[EYE_W[0], EYE_W[1], EYE_W[2] + 0.02]} size={deflect ? 0.45 : 0.35} color={deflect ? "#ffffff" : "#ff5a5a"} />
+    </group>
+  );
+};
+
 // ---------------------------------------------------------------- shots
 type Ctx = { t: number; lt: number; pk: PeckInfo | null };
 type Shot = {
@@ -189,23 +242,26 @@ const SHOTS: Shot[] = [
     peck: { rate: 3, amp: 0.3 },
     bird: ({ t, pk }) => ({ peck: t > cue.slosh - 0.4 ? pk!.peck : 1, xray: true, t, brainScale: 1, fluid: 1 - 0.9 * ramp(t, cue.pack + 0.2, 0.9), arrows: 1, arrowsIn: 1 }) },
 
-  // ---------- EYES
-  { name: "wood chips at you", t: cue.woodChips, a: S(EYE, 1.45, -40, 0), b: S(EYE, 1.25, -30, 4),
-    peck: { rate: 5, amp: 0.3, chips: true, dir: [-0.35, 0.25, 1], shake: true }, bird: ({ pk }) => ({ peck: pk!.peck }) },
-  { name: "straight at your eyes (push)", t: cue.straight, a: S(EYE, 1.0, -28, 2), b: S(EYE, 0.7, -18, 0), glide: 0.3,
-    peck: { rate: 5, amp: 0.3, chips: true, dir: [-0.35, 0.25, 1] }, bird: ({ pk }) => ({ peck: pk!.peck }) },
-  { name: "third eyelid", t: cue.eyelid, a: S(EYE, 0.7, -18, 0), b: S(EYE, 0.62, 12, 3), glide: 0.2, punch: [cue.snaps],
-    peck: { rate: 1.6, amp: 0.25, chips: true, dir: [-0.35, 0.25, 1] },
-    bird: ({ t, pk }) => {
-      const d = Math.min(Math.max(pk!.age, 0), pk!.period - Math.max(pk!.age, 0));
-      return { peck: pk!.peck, membrane: t < cue.snaps ? 0 : clamp01(1 - d / 0.22) };
-    } },
-  { name: "split second (slow-mo)", t: cue.split, a: S(EYE, 0.75, 12, 3), b: S(EYE, 0.75, 45, 8),
-    peck: { rate: 0.8, amp: 0.25, chips: true, dir: [-0.35, 0.25, 1], slow: true },
-    bird: ({ pk }) => {
-      const d = Math.min(Math.max(pk!.age, 0), pk!.period - Math.max(pk!.age, 0));
-      return { peck: pk!.peck, membrane: clamp01(1 - d / 0.35) };
-    } },
+  // ---------- EYES: chips fly from the impact into the eye; later the third eyelid deflects them
+  { name: "wood chips at you", t: cue.woodChips, a: S([1.22, 0.93, 0.15], 1.65, -10, 4), b: S([1.25, 0.94, 0.18], 1.4, -2, 4),
+    peck: { rate: 2.6, amp: 0.3, shake: true }, bird: ({ pk }) => ({ peck: pk!.peck }),
+    extra: ({ t, pk }) => (
+      <>
+        <EyeChips age={pk!.age} seed={pk!.hitIdx + 700} deflect={false} />
+        <Arrow3D a={[1.02, 1.02, 0.08]} b={[EYE_W[0] - 0.04, EYE_W[1] + 0.06, EYE_W[2]]} progress={ramp(t, T("chips") - 0.1, 0.3)} color="#ff4d5e" width={0.014} />
+      </>
+    ) },
+  { name: "straight at your eyes (push)", t: cue.straight, a: S(EYE, 1.0, -28, 2), b: S(EYE, 0.72, -18, 0), glide: 0.3,
+    peck: { rate: 2.6, amp: 0.3 }, bird: ({ pk }) => ({ peck: pk!.peck }),
+    extra: ({ pk }) => <EyeChips age={pk!.age} seed={pk!.hitIdx + 800} deflect={false} /> },
+  { name: "third eyelid", t: cue.eyelid, a: S(EYE, 0.72, -18, 0), b: S(EYE, 0.64, 12, 3), glide: 0.2, punch: [cue.snaps],
+    peck: { rate: 1.6, amp: 0.25 },
+    bird: ({ t, pk }) => ({ peck: pk!.peck, membrane: t < cue.snaps ? 0 : eyelidAt(pk!.age) }),
+    extra: ({ t, pk }) => <EyeChips age={pk!.age} seed={pk!.hitIdx + 900} deflect={t - Math.max(pk!.age, 0) >= cue.snaps - 0.25} /> },
+  { name: "split second (slow-mo)", t: cue.split, a: S(EYE, 0.78, 12, 3), b: S(EYE, 0.78, 45, 8),
+    peck: { rate: 0.8, amp: 0.25, slow: true },
+    bird: ({ pk }) => ({ peck: pk!.peck, membrane: eyelidAt(pk!.age * 0.35) }),
+    extra: ({ pk }) => <EyeChips age={pk!.age * 0.35} seed={pk!.hitIdx + 1000} deflect /> },
 
   // ---------- BOUNCE
   { name: "bounces off the tree", t: cue.bounce, a: S(BODY, 4.0, 70, 8), b: S(BODY, 3.5, 48, 4),
