@@ -1,9 +1,11 @@
 import { Composition } from "remotion";
 import { Board } from "./Board";
 import { DURATION_FRAMES, FPS, WoodpeckerVideo } from "./wp/Video";
+import { Avatar } from "./brand/Avatar";
 
 export const Root = () => (
   <>
+    <Composition id="Avatar" component={Avatar} width={800} height={800} fps={30} durationInFrames={1} defaultProps={{ variant: "cutaway" }} />
     <Composition
       id="Woodpecker"
       component={WoodpeckerVideo}
