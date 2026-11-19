@@ -5,3 +5,4 @@ remotion/out/
 blender/out/
 blender/final/
 remotion/build/
+videos/**/*.mp4
