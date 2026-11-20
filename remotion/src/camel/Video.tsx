@@ -5,8 +5,9 @@ import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import rawWords from "../data/camel_words.json";
 import { Captions, fontFamily } from "../wp/captions";
+import { DetailedCamel, useCamelRig } from "./DetailedCamel";
 import {
-  Arrow3D, Bottle, COL, Camel, CamelState, Desert, Drops, Fish, HeatArrows, OASIS, Oasis, SandRing, Sandstorm, Stars, Sun, V3, VESSEL, Vessel, rnd, sunPos,
+  Arrow3D, Bottle, COL, CamelState, Desert, Drops, Fish, HeatArrows, OASIS, Oasis, SandRing, Sandstorm, Stars, Sun, V3, VESSEL, Vessel, rnd, sunPos,
 } from "./model";
 
 export const FPS = 30;
@@ -64,9 +65,9 @@ const specPos = (s: Spec): V3 => {
 // focus points on the camel (standing at origin, facing +x)
 const BOTTLE: V3 = [0, 0.5, 0];
 const BODY: V3 = [0.3, 1.6, 0];
-const HEAD: V3 = [1.95, 2.66, 0];
-const NOSE: V3 = [2.2, 2.62, 0];
-const EYE: V3 = [1.94, 2.73, 0.13];
+const HEAD: V3 = [1.95, 2.72, 0];
+const NOSE: V3 = [2.27, 2.63, 0];
+const EYE: V3 = [1.93, 2.79, 0.15];
 const FOOT: V3 = [0.7, 0.12, 0.2];
 const HUMP: V3 = [-0.05, 2.2, 0];
 const KIDNEY: V3 = [-0.32, 1.78, 0];
@@ -119,20 +120,20 @@ const SHOTS: Shot[] = [
   // ---------- SAND
   { name: "wind blasts sand", t: cue.wind, a: S([1.1, 2.2, 0], 5.2, 30, 6), b: S([1.3, 2.3, 0], 4.4, 14, 4), shake: () => 0.6,
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t), storm: { amount: ramp(t, cue.wind, 0.4), focus: NOSE } }) },
-  { name: "straight up your nose (push)", t: cue.straight, a: S(NOSE, 1.25, 42, 4), b: S(NOSE, 0.9, 30, 2), glide: 0.3, shake: () => 0.4,
+  { name: "straight up your nose (push)", t: cue.straight, a: S(NOSE, 2.0, 42, 4), b: S(NOSE, 1.6, 30, 2), glide: 0.3, shake: () => 0.4,
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t), storm: { amount: 1, focus: NOSE } }),
     overlay: () => null },
-  { name: "nostrils snap shut", t: cue.nostrils, a: S(NOSE, 0.9, 30, 2), b: S(NOSE, 0.85, 58, 5), punch: [cue.snap],
+  { name: "nostrils snap shut", t: cue.nostrils, a: S(NOSE, 1.6, 30, 2), b: S(NOSE, 1.45, 58, 5), punch: [cue.snap],
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 1 - ramp(t, cue.snap, 0.15) }), storm: { amount: 1, focus: NOSE, deflect: t > cue.snap + 0.1 } }) },
-  { name: "double row of eyelashes", t: cue.lashes, a: S(EYE, 0.8, 22, 6), b: S(EYE, 0.62, 48, 8), glide: 0.3, punch: [cue.eyelashes],
+  { name: "double row of eyelashes", t: cue.lashes, a: S(EYE, 1.0, 22, 6), b: S(EYE, 0.8, 48, 8), glide: 0.3, punch: [cue.eyelashes],
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 0, lashGlow: ramp(t, cue.eyelashes - 0.1, 0.3) * (0.6 + 0.4 * Math.sin(t * 9)) }), storm: { amount: 1, focus: EYE, deflect: true } }) },
 
   // ---------- FEET
   { name: "every step sinks (walking, low side)", t: cue.step, a: S([0.3, 1.1, 0], 10.5, 25, 2), b: S([0.4, 0.9, 0], 8.8, 42, -2),
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { walk: t * 4, walkAmt: 1, sink: ramp(t, cue.sinks, 0.5) }) }) },
-  { name: "wide padded feet grow (foot macro)", t: cue.feet, a: S(FOOT, 1.25, 30, 12), b: S(FOOT, 1.0, 62, 15), punch: [cue.padded],
+  { name: "wide padded feet grow (foot macro)", t: cue.feet, a: S([0.72, 0.08, 0.2], 1.7, 35, 24), b: S([0.72, 0.08, 0.2], 1.45, 62, 28), punch: [cue.padded],
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { sink: 1 - ramp(t, cue.padded, 0.5), padSpread: ramp(t, cue.padded - 0.1, 0.5) }) }) },
-  { name: "spread out like snowshoes (ground level)", t: cue.spread, a: S([0.7, 0.15, 0.2], 1.7, -18, 4), b: S([0.75, 0.15, 0.2], 1.45, 12, 2),
+  { name: "spread out like snowshoes (ground level)", t: cue.spread, a: S([0.75, 0.15, 0.2], 2.0, 18, 10), b: S([0.75, 0.15, 0.2], 1.7, 44, 12),
     world: ({ t }) => {
       const k = (t - cue.spread) % 0.9;
       return { sunK: 0.45, camel: standing(t, { padSpread: 1 }), extra: (
@@ -166,7 +167,7 @@ const SHOTS: Shot[] = [
   // ---------- WATER LOSS + KIDNEYS
   { name: "every time you pee (x-ray, water drips out)", t: cue.pee, a: S([0.1, 1.6, 0], 7.0, 10, 4), b: S([-0.1, 1.6, 0], 5.8, 26, 2),
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true }), extra: <Drops t={t} from={[-0.55, 1.3, 0]} dir={[-0.25, -1.2, 0]} amount={ramp(t, cue.pee + 0.4, 0.3)} /> }) },
-  { name: "kidneys squeeze water back", t: cue.kidneys, a: S(KIDNEY, 1.6, 15, 6), b: S(KIDNEY, 1.2, 36, 8), punch: [cue.squeeze],
+  { name: "kidneys squeeze water back", t: cue.kidneys, a: S(KIDNEY, 2.2, 15, 6), b: S(KIDNEY, 1.8, 36, 8), punch: [cue.squeeze],
     world: ({ t }) => {
       const sq = t > cue.squeeze ? 0.5 + 0.5 * Math.sin((t - cue.squeeze) * 12) : 0;
       return { sunK: 0.45, camel: standing(t, { xray: true, kidneySqueeze: sq, kidneyGlow: sq * 0.8 }), extra: (
@@ -189,10 +190,10 @@ const SHOTS: Shot[] = [
       return { sunK: k, night: clamp01(Math.abs(k - 0.5) * 2.4 - 0.9), camel: standing(t) };
     },
     overlay: ({ t }) => <DayCounter t={t} start={cue.food} /> },
-  { name: "35 kilos of fat in the hump (x-ray)", t: cue.pack, a: S(HUMP, 2.7, 25, 10), b: S(HUMP, 2.1, 46, 14), punch: [cue.kilos],
+  { name: "35 kilos of fat in the hump (x-ray)", t: cue.pack, a: S(HUMP, 4.0, 25, 10), b: S(HUMP, 3.3, 46, 14), punch: [cue.kilos],
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, hump: lerp(1, 1.35, ramp(t, cue.packW, 0.8)), fat: ramp(t, cue.packW, 1.0) }) }),
     overlay: ({ t }) => t > cue.kilos && <BigLabel text="35 kg" appear={cue.kilos} /> },
-  { name: "not water, fat", t: cue.notWater, a: S([-0.05, 2.3, 0], 1.9, 10, 8), b: S([-0.05, 2.3, 0], 1.65, -15, 8), punch: [cue.fat],
+  { name: "not water, fat", t: cue.notWater, a: S([-0.05, 2.3, 0], 3.2, 10, 8), b: S([-0.05, 2.3, 0], 2.8, -15, 8), punch: [cue.fat],
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, hump: 1.35, fat: 1 }) }),
     overlay: ({ t }) => <NotWater t={t} water={cue.water} fat={cue.fat} /> },
   { name: "rest of the body cools off (heat leaves)", t: cue.keeping, a: S(BODY, 8.6, 40, 12), b: S(BODY, 7.4, 70, 14),
@@ -363,6 +364,7 @@ const CameraRig: React.FC<{ cam: CamOut }> = ({ cam }) => {
 export const CAMEL_SHOTS = SHOTS.map((s, i) => ({ name: s.name, t: s.t, end: shotEnd(i) }));
 
 export const CamelVideo: React.FC = () => {
+  const rig = useCamelRig();
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const t = frame / FPS;
@@ -384,8 +386,8 @@ export const CamelVideo: React.FC = () => {
         <color attach="background" args={[inVessel ? "#3a0610" : sky]} />
         {!inVessel && <fog attach="fog" args={[new THREE.Color("#f3dcb0").lerp(new THREE.Color(COL.skyNight), night).getStyle(), 25, 90]} />}
         <CameraRig cam={cam} />
-        <hemisphereLight args={[night > 0.5 ? "#6f86d6" : "#fff4dc", "#c99a5b", 0.75 - night * 0.35]} />
-        <directionalLight position={[sp[0] * 0.3, Math.max(2, sp[1] * 0.3), 8]} intensity={(2.6 - night * 2.2) * (inVessel ? 0.6 : 1)} color={night > 0.5 ? "#9fb4ff" : "#fff1d6"} castShadow
+        <hemisphereLight args={[night > 0.5 ? "#8fa4ee" : "#fff4dc", "#c99a5b", 0.75 - night * 0.05]} />
+        <directionalLight position={[sp[0] * 0.3, Math.max(2, sp[1] * 0.3), 8]} intensity={(2.6 - night * 1.5) * (inVessel ? 0.6 : 1)} color={night > 0.5 ? "#9fb4ff" : "#fff1d6"} castShadow
           shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-8} shadow-camera-right={8} shadow-camera-top={8} shadow-camera-bottom={-8} shadow-bias={-0.0005} />
         <directionalLight position={[-4, 3, -6]} intensity={0.7} color="#ffe6c2" />
         {inVessel ? (
@@ -400,7 +402,7 @@ export const CamelVideo: React.FC = () => {
             <Stars night={night} />
             <Oasis water={w.oasisWater ?? 1} t={t} />
             {w.bottle && <Bottle {...w.bottle} />}
-            {w.camel && <Camel {...w.camel} />}
+            {w.camel && <DetailedCamel rig={rig} {...w.camel} />}
             {w.storm && <Sandstorm t={t} {...w.storm} />}
             <Fish t={t} visible={!!w.fish && (w.oasisWater ?? 1) < 0.15} flop={w.fish?.flop ?? 0} look={w.fish?.look ?? 0} blink={w.fish?.blink ?? 0} />
             {w.extra}
