@@ -52,11 +52,16 @@ export const buildChunks = (words: Word[]): Chunk[] => {
   return chunks;
 };
 
-let cache: Chunk[] | null = null;
+// chunk lists cached per word array, so several videos can share this component
+const cache = new WeakMap<Word[], Chunk[]>();
 
 export const Captions: React.FC<{ words: Word[]; t: number; y?: number }> = ({ words, t, y = 0.62 }) => {
-  cache ??= buildChunks(words);
-  const c = cache.find((x) => t >= x.s && t < x.end);
+  let chunks = cache.get(words);
+  if (!chunks) {
+    chunks = buildChunks(words);
+    cache.set(words, chunks);
+  }
+  const c = chunks.find((x) => t >= x.s && t < x.end);
   if (!c) return null;
   const style: React.CSSProperties = {
     fontFamily,

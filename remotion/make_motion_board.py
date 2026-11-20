@@ -1,7 +1,9 @@
 """Motion storyboard: each shot shown as START -> END frame with camera + action notes.
 
-Usage: python3 make_motion_board.py out/shots.tsv out/sb OUT.png
+Usage: python3 make_motion_board.py out/shots.tsv out/sb OUT.png [NOTES.json] [TITLE]
+NOTES.json (optional) is a list of [camera, action] pairs, one per shot; defaults to the woodpecker notes.
 """
+import json
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
@@ -51,6 +53,9 @@ NOTES = [
     ("SWOOP · 100° orbit from behind to the front", "Bird turns to camera, winks; confetti chips"),
 ]
 
+if len(sys.argv) > 4:
+    NOTES = [tuple(x) for x in json.load(open(sys.argv[4]))]
+TITLE = sys.argv[5] if len(sys.argv) > 5 else "WOODPECKER — MOTION STORYBOARD (v2)"
 rows = [l.rstrip("\n").split("\t") for l in open(tsv)]
 assert len(rows) == len(NOTES), (len(rows), len(NOTES))
 
@@ -63,8 +68,8 @@ nrows = (len(rows) + COLS - 1) // COLS
 HEAD_H = 120
 board = Image.new("RGB", (COLS * CELL_W + (COLS + 1) * G, HEAD_H + nrows * CELL_H + (nrows + 1) * G), "#0b0c0f")
 d = ImageDraw.Draw(board)
-d.text((G + 8, 18), "WOODPECKER — MOTION STORYBOARD (v2)", font=ImageFont.truetype(DB, 34), fill="#ffd23f")
-d.text((G + 8, 66), "Each shot: START frame → END frame. Camera never holds still; 38 shots in 77 s (avg 2.0 s).",
+d.text((G + 8, 18), TITLE, font=ImageFont.truetype(DB, 34), fill="#ffd23f")
+d.text((G + 8, 66), f"Each shot: START frame → END frame. Camera never holds still; {len(rows)} shots, avg {float(rows[-1][3]) / len(rows):.1f} s each.",
        font=ImageFont.truetype(DR, 20), fill="#b8c0cc")
 
 fT = ImageFont.truetype(DB, 17)
