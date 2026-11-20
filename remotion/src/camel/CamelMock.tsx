@@ -5,7 +5,7 @@ import { ThreeCanvas } from "@remotion/three";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { Desert } from "./model";
+import { CamelHead, Desert } from "./model";
 
 const Cam: React.FC = () => {
   const { camera } = useThree();
@@ -80,6 +80,10 @@ export const CamelMock: React.FC = () => {
         <directionalLight position={[5, 3, -6]} intensity={0.8} color="#ffe6c2" />
         <Desert night={0} />
         {camel && <primitive object={camel} />}
+        {/* friendly head on the end of the neck (neck tip ≈ (1.66, 2.6, 0)) */}
+        <group position={[1.86, 2.7, 0]} rotation={[0, 0, -0.15]} scale={1.15}>
+          <CamelHead color="#9a5e2e" dark="#7a4520" />
+        </group>
       </ThreeCanvas>
     </AbsoluteFill>
   );

@@ -215,40 +215,46 @@ export const Camel: React.FC<CamelState> = ({
       <Neck pts={[...neckPts, [headPos[0] - 0.18, headPos[1] - 0.02, 0]]} color={furC} opacity={op} />
       {/* head group */}
       <group position={headPos} rotation={[0, look * 0.9, -0.15 - headDown * 0.9]}>
-        <Ell pos={[0, 0, 0]} r={[0.3, 0.17, 0.15]} color={furC} opacity={op} />
-        <Ell pos={[0.22, -0.04, 0]} r={[0.16, 0.12, 0.12]} color={furC} opacity={op} />
-        {/* ears */}
-        {[0.08, -0.08].map((z) => (
-          <Ell key={z} pos={[-0.18, 0.14, z]} r={[0.04, 0.07, 0.03]} color={dark} opacity={op} />
-        ))}
-        {/* nostrils: slits that close */}
-        {[0.05, -0.05].map((z) => (
-          <Ell key={z} pos={[0.37, 0.0, z]} r={[0.012, 0.022 * Math.max(0.08, nostrils), 0.01]} color="#2a1a10" />
-        ))}
-        {/* eyes + double row of lashes */}
-        {[1, -1].map((s) => (
-          <group key={s} position={[0.06, 0.07, 0.13 * s]}>
-            <mesh scale={[1, Math.max(0.1, 1 - blink), 1]}>
-              <sphereGeometry args={[0.04, 16, 12]} />
-              <meshStandardMaterial color="#120c08" roughness={0.15} />
-            </mesh>
-            {[0, 1].map((row) =>
-              Array.from({ length: 7 }, (_, k) => {
-                const a = -0.7 + k * 0.23;
-                return (
-                  <mesh key={`${row}-${k}`} position={[Math.cos(a) * 0.045 + 0.005, 0.03 + row * 0.012, 0.012 * s]} rotation={[0, 0, a + Math.PI / 2 - 0.3]}>
-                    <cylinderGeometry args={[0.003, 0.002, 0.045 + row * 0.01, 4]} />
-                    <meshStandardMaterial color={lashGlow > 0 ? mix("#2a1a10", "#ffe14d", lashGlow) : "#2a1a10"} emissive={lashGlow > 0 ? "#ffe14d" : "#000"} emissiveIntensity={lashGlow} />
-                  </mesh>
-                );
-              }),
-            )}
-          </group>
-        ))}
+        <CamelHead color={furC} dark={dark} opacity={op} nostrils={nostrils} lashGlow={lashGlow} blink={blink} />
       </group>
     </group>
   );
 };
+
+/** The friendly camel head (rounded skull + muzzle, big dark eyes, double lashes, slit nostrils). */
+export const CamelHead: React.FC<{ color: string; dark: string; opacity?: number; nostrils?: number; lashGlow?: number; blink?: number }> = ({
+  color, dark, opacity = 1, nostrils = 1, lashGlow = 0, blink = 0,
+}) => (
+  <group>
+    <Ell pos={[0, 0, 0]} r={[0.3, 0.17, 0.15]} color={color} opacity={opacity} />
+    <Ell pos={[0.22, -0.04, 0]} r={[0.16, 0.12, 0.12]} color={color} opacity={opacity} />
+    {[0.08, -0.08].map((z) => (
+      <Ell key={z} pos={[-0.18, 0.14, z]} r={[0.04, 0.07, 0.03]} color={dark} opacity={opacity} />
+    ))}
+    {[0.05, -0.05].map((z) => (
+      <Ell key={z} pos={[0.37, 0.0, z]} r={[0.012, 0.022 * Math.max(0.08, nostrils), 0.01]} color="#2a1a10" />
+    ))}
+    {[1, -1].map((s) => (
+      <group key={s} position={[0.06, 0.07, 0.13 * s]}>
+        <mesh scale={[1, Math.max(0.1, 1 - blink), 1]}>
+          <sphereGeometry args={[0.04, 16, 12]} />
+          <meshStandardMaterial color="#120c08" roughness={0.15} />
+        </mesh>
+        {[0, 1].map((row) =>
+          Array.from({ length: 7 }, (_, k) => {
+            const a = -0.7 + k * 0.23;
+            return (
+              <mesh key={`${row}-${k}`} position={[Math.cos(a) * 0.045 + 0.005, 0.03 + row * 0.012, 0.012 * s]} rotation={[0, 0, a + Math.PI / 2 - 0.3]}>
+                <cylinderGeometry args={[0.003, 0.002, 0.045 + row * 0.01, 4]} />
+                <meshStandardMaterial color={lashGlow > 0 ? mix("#2a1a10", "#ffe14d", lashGlow) : "#2a1a10"} emissive={lashGlow > 0 ? "#ffe14d" : "#000"} emissiveIntensity={lashGlow} />
+              </mesh>
+            );
+          }),
+        )}
+      </group>
+    ))}
+  </group>
+);
 
 /** Smooth tapered neck: tube along a spline, thicker at the shoulders. */
 const Neck: React.FC<{ pts: V3[]; color: string; opacity: number }> = ({ pts, color, opacity }) => {

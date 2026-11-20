@@ -140,14 +140,7 @@ for i in range(len(neck) - 1):
     (a, ra), (b, rb) = neck[i], neck[i + 1]
     chain(a, b, ra, rb, 8, 1.8)
 
-# head: skull, long snout, droopy lips
-ball((1.78, 0, 2.7), (0.17, 0.13, 0.14))          # skull
-ball((1.98, 0, 2.66), (0.17, 0.10, 0.10))         # muzzle
-ball((2.12, 0, 2.6), (0.10, 0.085, 0.085))        # snout tip
-ball((2.1, 0, 2.53), (0.09, 0.07, 0.045))         # upper lip
-ball((2.04, 0, 2.5), (0.08, 0.055, 0.04))         # lower lip (droopy)
-for s in (1, -1):
-    ball((1.72, 0.09 * s, 2.76), (0.07, 0.05, 0.06))  # brow ridges
+# head is added in Remotion (the friendlier "current" head), so the neck just ends here
 
 # legs: long, knobbly knees, thin shins, wide pads
 legs = [(0.62, 0.2), (0.62, -0.2), (-0.62, 0.2), (-0.62, -0.2)]
@@ -193,33 +186,6 @@ for x, y in legs:
         o = bpy.context.active_object
         o.scale = (0.12, 0.065, 0.05)
         add(o, DARK)
-# eyes (big, heavy-lidded) + double row of lashes
-for s in (1, -1):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=0.042, location=(1.84, 0.115 * s, 2.73))
-    add(bpy.context.active_object, EYE)
-    for row in range(2):
-        for k in range(9):
-            a = math.radians(-50 + k * 12)
-            bpy.ops.mesh.primitive_cylinder_add(vertices=4, radius=0.0035, depth=0.05 + row * 0.012,
-                                                location=(1.84 + math.sin(a) * 0.045, 0.118 * s + 0.012 * s * row, 2.765 + math.cos(a) * 0.012))
-            o = bpy.context.active_object
-            o.rotation_euler = (math.radians(-55) * s, 0, a)
-            add(o, LASH)
-# ears (small, rounded, pointing back)
-for s in (1, -1):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=10, radius=1, location=(1.68, 0.1 * s, 2.86))
-    o = bpy.context.active_object
-    o.scale = (0.035, 0.022, 0.06)
-    o.rotation_euler = (0.3 * s, -0.7, 0)
-    add(o, FUR)
-# slit nostrils
-for s in (1, -1):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=1, location=(2.2, 0.045 * s, 2.63))
-    o = bpy.context.active_object
-    o.scale = (0.012, 0.008, 0.028)
-    o.rotation_euler = (0, 0.4, 0.5 * s)
-    add(o, NOSE)
-
 # ------------------------------------------------------------ export GLB (camel only, before environment)
 bpy.ops.object.select_all(action="DESELECT")
 for o in parts:
