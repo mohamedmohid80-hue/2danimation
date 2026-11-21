@@ -114,7 +114,7 @@ const Vultures: React.FC<{ t: number; only?: number }> = ({ t, only }) => (
     {[0, 1].slice(0, only ?? 2).map((i) => {
       const a = t * (0.7 + i * 0.25) + i * 2.6;
       const r = 3.2 + i * 1.3;
-      return <Vulture key={i} pos={[Math.cos(a) * r, 5.2 + i * 1.4 + Math.sin(t * 1.3 + i) * 0.3, Math.sin(a) * r]} heading={-a - Math.PI / 2} flap={(t * (1.4 + i * 0.3)) % 1} />;
+      return <Vulture key={i} pos={[Math.cos(a) * r, 4.2 + i * 1.2 + Math.sin(t * 1.3 + i) * 0.3, Math.sin(a) * r]} heading={-a - Math.PI / 2} flap={(t * (1.4 + i * 0.3)) % 1} scale={2.2} />;
     })}
   </>
 );
@@ -123,8 +123,8 @@ const LandingVulture: React.FC<{ t: number; start: number }> = ({ t, start }) =>
   const k = clamp01((t - start) / 0.7);
   if (t < start) return null;
   const e = 1 - Math.pow(1 - k, 2);
-  const p: V3 = [lerp(-3.5, 0.75, e), lerp(4.5, 0.24, e), lerp(2.5, 0.55, e)];
-  return <Vulture pos={p} heading={k < 1 ? -0.5 : -2.4} flap={(t * 2.2) % 1} folded={ramp(t, start + 0.6, 0.25)} scale={0.9} />;
+  const p: V3 = [lerp(-3.5, 0.9, e), lerp(4.5, 0.3, e), lerp(2.5, -0.7, e)];
+  return <Vulture pos={p} heading={k < 1 ? -0.5 : -2.4} flap={(t * 2.2) % 1} folded={ramp(t, start + 0.6, 0.25)} scale={1.15} />;
 };
 
 /** A sweat drop that gets crossed out. */
@@ -439,7 +439,7 @@ export const CamelVideo: React.FC = () => {
             <Desert night={night} />
             <Sun k={sunK} night={night} />
             <Stars night={night} />
-            <Oasis water={w.oasisWater ?? 1} t={t} />
+            {w.oasisWater !== undefined && <Oasis water={w.oasisWater} t={t} />}
             <Dressing shift={-(w.travel ?? 0)} />
             {(w.travel !== undefined || w.footprints !== undefined) && <Footprints travel={w.travel ?? 0} />}
             {w.bottle && <Bottle {...w.bottle} />}
