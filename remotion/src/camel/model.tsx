@@ -156,6 +156,8 @@ export type CamelState = {
   headDown?: number; // 0..1 lower head to drink
   look?: number; // 0..1 head turns to camera
   blink?: number; // 0 open .. 1 closed
+  shake?: number; // 0..1 shake sand off (body wiggle)
+  humpWobble?: number; // 0..1 fat jiggle
   t?: number;
 };
 

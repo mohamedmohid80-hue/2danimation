@@ -6,6 +6,7 @@ import * as THREE from "three";
 import rawWords from "../data/camel_words.json";
 import { Captions, fontFamily } from "../wp/captions";
 import { DetailedCamel, useCamelRig } from "./DetailedCamel";
+import { Dressing, FatChunks, Footprints, Gulps, RollingBottle, Vulture, WaterFlow } from "./props2";
 import {
   Arrow3D, Bottle, COL, CamelState, Desert, Drops, Fish, HeatArrows, OASIS, Oasis, SandRing, Sandstorm, Stars, Sun, V3, VESSEL, Vessel, rnd, sunPos,
 } from "./model";
@@ -41,6 +42,7 @@ const cue = {
   days: T("but after days"), blood: T("your blood starts"), thicken: T("thicken"), cells: T("so your blood cells"), oval: T("oval"),
   swell: T("and they can swell"), swellW: T("swell"), finally: T("when you finally"), hundred: T("100"),
   congrats: T("congratulations"), camelW: T("camel", T("congratulations")),
+  wastes: T("wastes"), keeps: T("keeps"), oneBig: T("one big"),
 };
 const GAG = lastWordEnd + 0.35; // slurp starts
 
@@ -83,6 +85,8 @@ type World = {
   oasisWater?: number;
   fish?: { flop: number; look: number; blink: number };
   extra?: React.ReactNode;
+  travel?: number; // how far the camel has walked: rocks/shrubs/footprints scroll past
+  footprints?: number; // show a footprint trail even without travel (hook)
 };
 type Ctx = { t: number };
 type Shot = {
@@ -100,122 +104,157 @@ type Shot = {
 
 const standing = (t: number, extra: Partial<CamelState> = {}): CamelState => ({ t, blink: blinkAt(t), ...extra });
 const blinkAt = (t: number) => (t % 3.7 < 0.12 ? 1 : 0);
+/** Walking in place while the ground scrolls; travel = distance walked. */
+const walking = (t: number, extra: Partial<CamelState> = {}): CamelState => standing(t, { walk: t * 4.2, walkAmt: 1, ...extra });
+const walkTravel = (t: number, offset: number, speed = 0.9) => t * speed + offset;
+
+/** Two vultures circling high over the bottle. */
+const Vultures: React.FC<{ t: number; only?: number }> = ({ t, only }) => (
+  <>
+    {[0, 1].slice(0, only ?? 2).map((i) => {
+      const a = t * (0.7 + i * 0.25) + i * 2.6;
+      const r = 3.2 + i * 1.3;
+      return <Vulture key={i} pos={[Math.cos(a) * r, 5.2 + i * 1.4 + Math.sin(t * 1.3 + i) * 0.3, Math.sin(a) * r]} heading={-a - Math.PI / 2} flap={(t * (1.4 + i * 0.3)) % 1} />;
+    })}
+  </>
+);
+/** A vulture swoops down and lands beside the toppled bottle. */
+const LandingVulture: React.FC<{ t: number; start: number }> = ({ t, start }) => {
+  const k = clamp01((t - start) / 0.7);
+  if (t < start) return null;
+  const e = 1 - Math.pow(1 - k, 2);
+  const p: V3 = [lerp(-3.5, 0.75, e), lerp(4.5, 0.24, e), lerp(2.5, 0.55, e)];
+  return <Vulture pos={p} heading={k < 1 ? -0.5 : -2.4} flap={(t * 2.2) % 1} folded={ramp(t, start + 0.6, 0.25)} scale={0.9} />;
+};
+
+/** A sweat drop that gets crossed out. */
+const NoSweat: React.FC<{ t: number; appear: number }> = ({ t, appear }) => {
+  const a = easeOut(clamp01((t - appear) / 0.25));
+  const x = easeOut(clamp01((t - appear - 0.35) / 0.2));
+  return (
+    <AbsoluteFill style={{ padding: "250px 80px 0 0", alignItems: "flex-end" }}>
+      <div style={{ width: 170, height: 210, opacity: a, transform: `scale(${0.5 + 0.5 * a})` }}>
+        <svg width="170" height="210" viewBox="0 0 100 120">
+          <path d="M50 6 C50 6 14 52 14 76 A36 36 0 0 0 86 76 C86 52 50 6 50 6 Z" fill="#3fa9f5" stroke="#1d2f6f" strokeWidth="6" />
+          {x > 0 && <g stroke="#ff2d2d" strokeWidth={12 * x} strokeLinecap="round"><line x1="12" y1="30" x2="88" y2="110" /><line x1="88" y1="30" x2="12" y2="110" /></g>}
+        </svg>
+      </div>
+    </AbsoluteFill>
+  );
+};
 
 const SHOTS: Shot[] = [
-  // ---------- HOOK
-  { name: "crane down to a lone bottle", t: 0, a: S([0, 0.5, 0], 14, 25, 22), b: S(BOTTLE, 3.0, 20, 8),
-    world: () => ({ sunK: 0.18, bottle: { level: 1, tip: 0, visible: 1 } }),
+  // ---------- HOOK: endless desert, vultures, dive down to one bottle
+  { name: "aerial dive over endless dunes to a lone bottle", t: 0, a: S([0, 0.6, 0], 34, 10, 34, 40), b: S(BOTTLE, 4.4, 32, 10),
+    world: ({ t }) => ({ sunK: 0.25, bottle: { level: 1, tip: 0, visible: 1 }, footprints: 0,
+      extra: <><Vultures t={t} /><HeatArrows t={t} center={[0, 0.25, 0]} amount={0.55} spread={7} color="#ffb070" /></> }),
     overlay: ({ t }) => t > cue.sahara && <BigLabel text="50°C" appear={cue.sahara} /> },
-  { name: "one bottle of water", t: cue.bottle - 0.2, a: S(BOTTLE, 2.2, 35, 6), b: S(BOTTLE, 1.85, 58, 4), glide: 0.3, punch: [cue.bottle],
-    world: () => ({ sunK: 0.2, bottle: { level: 1, tip: 0, visible: 1 } }),
+  { name: "one bottle of water: fast orbit, vultures overhead", t: cue.bottle - 0.2, a: S(BOTTLE, 2.7, 40, -6), b: S(BOTTLE, 2.1, 150, -2), glide: 0.25, punch: [cue.bottle],
+    world: ({ t }) => ({ sunK: 0.28, bottle: { level: 1, tip: 0, visible: 1 }, footprints: 0, extra: <Vultures t={t} /> }),
     overlay: () => <BigLabel text="50°C" appear={cue.sahara} /> },
-  { name: "done by lunch: sun races overhead, bottle drains + topples", t: cue.lunchLine, a: S(BOTTLE, 3.6, 62, 12), b: S(BOTTLE, 3.1, 100, 16),
-    world: ({ t }) => ({ sunK: lerp(0.2, 0.5, ramp(t, cue.lunchLine, 0.9)), bottle: { level: 1 - ramp(t, cue.lunchLine, 0.75), tip: clamp01((t - cue.lunch - 0.15) / 0.5), visible: 1 } }) },
+  { name: "done by lunch: sun races, bottle drains + topples, vulture lands", t: cue.lunchLine, a: S(BOTTLE, 4.6, 160, 14), b: S(BOTTLE, 3.4, 215, 8),
+    world: ({ t }) => ({ sunK: lerp(0.28, 0.55, ramp(t, cue.lunchLine, 0.9)), footprints: 0,
+      bottle: { level: 1 - ramp(t, cue.lunchLine, 0.75), tip: clamp01((t - cue.lunch - 0.1) / 0.5), visible: 1 },
+      extra: <><Vultures t={t} only={1} /><LandingVulture t={t} start={cue.lunch + 0.15} /></> }) },
 
   // ---------- A BODY THAT WASTES NOTHING
-  { name: "camel rises out of the sand (hero orbit)", t: cue.grow, a: S(BODY, 13, 42, 4), b: S(BODY, 10.5, 18, 8),
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { grow: ramp(t, cue.growW, 1.2) }),
-      extra: <SandBurst age={t - cue.growW} /> }) },
+  { name: "camel bursts up out of the sand (90° orbit)", t: cue.grow, a: S(BODY, 11, 70, -4), b: S(BODY, 8, -25, 10),
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { grow: ramp(t, cue.growW, 1.0) }), extra: <SandBurst age={t - cue.growW} /> }) },
+  { name: "shakes off the sand and starts walking (tracking)", t: cue.wastes, a: S(BODY, 7.5, 100, 4), b: S(BODY, 6.2, 70, 6), glide: 0.3,
+    world: ({ t }) => ({ sunK: 0.45, travel: walkTravel(t, cue.wastes + 0.5), camel: walking(t, { shake: 1 - ramp(t, cue.wastes, 0.6), walkAmt: ramp(t, cue.wastes + 0.4, 0.3) }) }) },
 
   // ---------- SAND
-  { name: "wind blasts sand", t: cue.wind, a: S([1.1, 2.2, 0], 5.2, 30, 6), b: S([1.3, 2.3, 0], 4.4, 14, 4), shake: () => 0.6,
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t), storm: { amount: ramp(t, cue.wind, 0.4), focus: NOSE } }) },
-  { name: "straight up your nose (push)", t: cue.straight, a: S(NOSE, 2.0, 42, 4), b: S(NOSE, 1.6, 30, 2), glide: 0.3, shake: () => 0.4,
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t), storm: { amount: 1, focus: NOSE } }),
-    overlay: () => null },
-  { name: "nostrils snap shut", t: cue.nostrils, a: S(NOSE, 1.6, 30, 2), b: S(NOSE, 1.45, 58, 5), punch: [cue.snap],
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 1 - ramp(t, cue.snap, 0.15) }), storm: { amount: 1, focus: NOSE, deflect: t > cue.snap + 0.1 } }) },
-  { name: "double row of eyelashes", t: cue.lashes, a: S(EYE, 1.0, 22, 6), b: S(EYE, 0.8, 48, 8), glide: 0.3, punch: [cue.eyelashes],
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 0, lashGlow: ramp(t, cue.eyelashes - 0.1, 0.3) * (0.6 + 0.4 * Math.sin(t * 9)) }), storm: { amount: 1, focus: EYE, deflect: true } }) },
+  { name: "walking into a sandstorm", t: cue.wind, a: S([1.1, 2.2, 0], 6.4, 42, 4), b: S([1.3, 2.3, 0], 4.6, 14, 2), shake: () => 0.7,
+    world: ({ t }) => ({ sunK: 0.45, travel: walkTravel(t, 0), camel: walking(t), storm: { amount: ramp(t, cue.wind, 0.3), focus: NOSE } }) },
+  { name: "push straight up the nose", t: cue.straight, a: S(NOSE, 2.4, 45, 4), b: S(NOSE, 1.45, 22, 2), glide: 0.3, shake: () => 0.5,
+    world: ({ t }) => ({ sunK: 0.45, travel: walkTravel(t, 0), camel: walking(t, { walkAmt: 0.5 }), storm: { amount: 1, focus: NOSE } }) },
+  { name: "nostrils SNAP shut (orbit)", t: cue.nostrils, a: S(NOSE, 1.45, 22, 2), b: S(NOSE, 1.35, 75, 8), punch: [cue.snap],
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 1 - ramp(t, cue.snap, 0.12) }), storm: { amount: 1, focus: NOSE, deflect: t > cue.snap + 0.1 } }) },
+  { name: "double row of eyelashes (eye macro)", t: cue.lashes, a: S(EYE, 1.2, 8, 6), b: S(EYE, 0.85, 52, 10), glide: 0.25, punch: [cue.eyelashes],
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 0, lashGlow: ramp(t, cue.eyelashes - 0.1, 0.3) }), storm: { amount: 1, focus: EYE, deflect: true } }) },
+  { name: "keeps sand out: pull out as sand bounces off", t: cue.keeps, a: S(EYE, 0.85, 52, 10), b: S(HEAD, 3.6, 95, 6),
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { nostrils: 0, lashGlow: 1 - ramp(t, cue.keeps + 0.6, 0.5) }), storm: { amount: 1, focus: EYE, deflect: true } }) },
 
   // ---------- FEET
-  { name: "every step sinks (walking, low side)", t: cue.step, a: S([0.3, 1.1, 0], 10.5, 25, 2), b: S([0.4, 0.9, 0], 8.8, 42, -2),
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { walk: t * 4, walkAmt: 1, sink: ramp(t, cue.sinks, 0.5) }) }) },
-  { name: "wide padded feet grow (foot macro)", t: cue.feet, a: S([0.72, 0.08, 0.2], 1.7, 35, 24), b: S([0.72, 0.08, 0.2], 1.45, 62, 28), punch: [cue.padded],
+  { name: "every step sinks (low tracking at the feet)", t: cue.step, a: S([0.4, 0.5, 0], 5.6, 88, 2), b: S([0.4, 0.5, 0], 4.4, 58, -2),
+    world: ({ t }) => ({ sunK: 0.45, travel: walkTravel(t, 0, 0.6), camel: walking(t, { sink: 0.35 + 0.65 * ramp(t, cue.sinks, 0.4) * (0.6 + 0.4 * Math.sin(t * 8.4)) }) }) },
+  { name: "wide padded feet grow (foot macro)", t: cue.feet, a: S([0.72, 0.08, 0.2], 1.8, 30, 24), b: S([0.72, 0.08, 0.2], 1.45, 80, 30), punch: [cue.padded],
     world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { sink: 1 - ramp(t, cue.padded, 0.5), padSpread: ramp(t, cue.padded - 0.1, 0.5) }) }) },
-  { name: "spread out like snowshoes (ground level)", t: cue.spread, a: S([0.75, 0.15, 0.2], 2.0, 18, 10), b: S([0.75, 0.15, 0.2], 1.7, 44, 12),
-    world: ({ t }) => {
-      const k = (t - cue.spread) % 0.9;
-      return { sunK: 0.45, camel: standing(t, { padSpread: 1 }), extra: (
-        <>
-          <SandRing pos={[0.75, 0, 0.2]} k={k / 0.6} />
-          {[[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]].map((d, i) => (
-            <Arrow3D key={i} a={[0.75 + d[0] * 0.28, 0.05, 0.2 + d[2] * 0.25]} b={[0.75 + d[0] * 0.6, 0.05, 0.2 + d[2] * 0.55]} progress={ramp(t, cue.snowshoes - 0.2, 0.3)} color="#ffffff" width={0.018} />
-          ))}
-        </>
-      ) };
-    } },
+  { name: "spread out like snowshoes (walking, low behind)", t: cue.spread, a: S([0.3, 0.35, 0], 3.8, 145, 8), b: S([0.3, 0.35, 0], 3.0, 105, 4), punch: [cue.snowshoes],
+    world: ({ t }) => ({ sunK: 0.45, travel: walkTravel(t, 0), camel: walking(t, { padSpread: 1 }) }) },
 
   // ---------- HEAT
-  { name: "the sun cooks you (low angle, heat map)", t: cue.sun, a: S([0.4, 1.9, 0], 9.5, -34, -10), b: S([0.4, 1.9, 0], 8.2, -14, -5),
-    world: ({ t }) => ({ sunK: 0.5, camel: standing(t, { heat: 0.75 * ramp(t, cue.sun + 0.3, 0.6) }), extra: <HeatArrows t={t} center={[0.2, 2.6, 0.2]} amount={ramp(t, cue.sun + 0.3, 0.4)} /> }) },
-  { name: "sweating pours water away", t: cue.sweating, a: S([0.1, 2.0, 0], 3.5, 30, 8), b: S([0.1, 2.0, 0], 3.0, 52, 6), glide: 0.25,
-    world: ({ t }) => ({ sunK: 0.5, camel: standing(t, { heat: 0.75 }), extra: <Drops t={t} from={[0.1, 2.15, 0.3]} dir={[0, 1.4, 0.3]} amount={1} /> }) },
-  { name: "so instead of sweating (thermometer)", t: cue.instead, a: S(BODY, 9.0, 10, 5), b: S(BODY, 8.2, 25, 5),
-    world: ({ t }) => ({ sunK: 0.5, camel: standing(t, { heat: 0.2 }) }),
-    overlay: ({ t }) => <Thermo t={t} appear={cue.instead} value={34} /> },
-  { name: "heat up by 6 degrees in the day", t: cue.heatUp, a: S(BODY, 8.2, 25, 5), b: S(BODY, 7.6, 42, 6), glide: 0.2, punch: [cue.six],
-    world: ({ t }) => ({ sunK: 0.5, camel: standing(t, { heat: lerp(0.2, 0.95, ramp(t, cue.heatUp, 1.2)) }), extra: <HeatArrows t={t} center={[0.2, 2.6, 0.2]} amount={0.8} /> }),
+  { name: "the sun cooks you (low angle up, heat map)", t: cue.sun, a: S([0.4, 1.9, 0], 9.4, -44, -12), b: S([0.4, 1.9, 0], 7.4, -8, -6),
+    world: ({ t }) => ({ sunK: 0.5, travel: walkTravel(t, 0), camel: walking(t, { heat: 0.8 * ramp(t, cue.sun + 0.2, 0.6) }), extra: <HeatArrows t={t} center={[0.2, 2.6, 0.2]} amount={ramp(t, cue.sun + 0.2, 0.4)} /> }) },
+  { name: "sweating pours water away (orbit the back)", t: cue.sweating, a: S([0.1, 2.0, 0], 4.0, 25, 10), b: S([0.1, 2.0, 0], 3.2, 80, 6), glide: 0.25,
+    world: ({ t }) => ({ sunK: 0.5, travel: walkTravel(t, 0), camel: walking(t, { heat: 0.8 }), extra: <Drops t={t * 1.6} from={[0.1, 2.15, 0.3]} dir={[0.2, 1.6, 0.6]} amount={1} /> }) },
+  { name: "so instead of sweating: crane up, NO SWEAT", t: cue.instead, a: S(BODY, 8, -5, 2), b: S(BODY, 6.6, 40, 16),
+    world: ({ t }) => ({ sunK: 0.5, camel: standing(t, { heat: 0.25 }) }),
+    overlay: ({ t }) => <><Thermo t={t} appear={cue.instead + 0.3} value={34} /><NoSweat t={t} appear={cue.instead} /></> },
+  { name: "heat up 6 degrees: time-lapse sun, shadow swings", t: cue.heatUp, a: S(BODY, 6.6, 40, 16), b: S(BODY, 7.4, 110, 8), glide: 0.2, punch: [cue.six],
+    world: ({ t }) => ({ sunK: lerp(0.3, 0.62, ramp(t, cue.heatUp, 1.6)), camel: standing(t, { heat: lerp(0.25, 0.95, ramp(t, cue.heatUp, 1.2)) }), extra: <HeatArrows t={t} center={[0.2, 2.6, 0.2]} amount={0.8} /> }),
     overlay: ({ t }) => <Thermo t={t} appear={cue.instead} value={lerp(34, 40, ramp(t, cue.heatUp, 1.2))} badge={t > cue.six ? "+6°" : undefined} /> },
-  { name: "cool back down at night (day→night orbit)", t: cue.cool, a: S(BODY, 7.6, 42, 6), b: S(BODY, 9.0, 82, 12),
+  { name: "cool down at night: sunset, crane up wide", t: cue.cool, a: S(BODY, 7.4, 110, 8), b: S(BODY, 11.5, 160, 22),
     world: ({ t }) => {
       const n = ramp(t, cue.cool, 1.0);
-      return { sunK: lerp(0.5, 1.0, n), night: n, camel: standing(t, { heat: lerp(0.95, -0.8, n) }) };
+      return { sunK: lerp(0.62, 1.0, n), night: n, travel: walkTravel(t, 0, 0.5), camel: walking(t, { heat: lerp(0.95, -0.8, n), walkAmt: 0.7 }) };
     },
     overlay: ({ t }) => <Thermo t={t} appear={cue.instead} value={lerp(40, 34, ramp(t, cue.cool, 1.0))} /> },
 
-  // ---------- WATER LOSS + KIDNEYS
-  { name: "every time you pee (x-ray, water drips out)", t: cue.pee, a: S([0.1, 1.6, 0], 7.0, 10, 4), b: S([-0.1, 1.6, 0], 5.8, 26, 2),
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true }), extra: <Drops t={t} from={[-0.55, 1.3, 0]} dir={[-0.25, -1.2, 0]} amount={ramp(t, cue.pee + 0.4, 0.3)} /> }) },
-  { name: "kidneys squeeze water back", t: cue.kidneys, a: S(KIDNEY, 2.2, 15, 6), b: S(KIDNEY, 1.8, 36, 8), punch: [cue.squeeze],
+  // ---------- WATER: x-ray flow
+  { name: "every time you pee: x-ray, water flows + leaks out", t: cue.pee, a: S([-0.1, 1.6, 0], 6.6, -10, 4), b: S([-0.1, 1.6, 0], 4.8, 55, 8),
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true }), extra: <WaterFlow t={t} amount={1} leak={ramp(t, cue.pee + 0.5, 0.4)} /> }) },
+  { name: "kidneys squeeze: water spirals through them", t: cue.kidneys, a: S(KIDNEY, 2.9, 15, 6), b: S(KIDNEY, 1.7, 75, 12), punch: [cue.squeeze],
     world: ({ t }) => {
       const sq = t > cue.squeeze ? 0.5 + 0.5 * Math.sin((t - cue.squeeze) * 12) : 0;
-      return { sunK: 0.45, camel: standing(t, { xray: true, kidneySqueeze: sq, kidneyGlow: sq * 0.8 }), extra: (
-        <group>
-          {[0, 1, 2, 3, 4].map((i) => {
-            const ph = (t * 1.2 + i / 5) % 1;
-            const a = (i / 5) * Math.PI * 2;
-            const from: V3 = [KIDNEY[0], KIDNEY[1], 0.15];
-            const to: V3 = [KIDNEY[0] + Math.cos(a) * 0.7, KIDNEY[1] + Math.sin(a) * 0.45, 0.15];
-            return <Arrow3D key={i} a={lerp3(from, to, ph * 0.5)} b={lerp3(from, to, 0.3 + ph * 0.7)} color={COL.water} width={0.016} opacity={ramp(t, cue.back - 0.2, 0.3) * Math.sin(ph * Math.PI)} />;
-          })}
-        </group>
-      ) };
+      return { sunK: 0.45, camel: standing(t, { xray: true, kidneySqueeze: sq, kidneyGlow: sq * 0.8 }), extra: <WaterFlow t={t} amount={1} toKidney={ramp(t, cue.kidneys + 0.3, 0.5)} speed={0.5} /> };
     } },
+  { name: "back into your body: pull out, water floods the body", t: cue.back, a: S(KIDNEY, 1.7, 75, 12), b: S(BODY, 6.2, 125, 8),
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, kidneyGlow: 0.4 }), extra: <WaterFlow t={t} amount={1} speed={0.7} /> }) },
 
   // ---------- FOOD + HUMP
-  { name: "no food for weeks (time-lapse days)", t: cue.food, a: S(BODY, 16, 30, 10), b: S(BODY, 12.5, 48, 12),
+  { name: "no food for weeks: fast-forward trek, days fly by", t: cue.food, a: S(BODY, 16, 85, 10), b: S(BODY, 12.5, 35, 16),
     world: ({ t }) => {
       const k = ((t - cue.food) * 0.9) % 1;
-      return { sunK: k, night: clamp01(Math.abs(k - 0.5) * 2.4 - 0.9), camel: standing(t) };
+      return { sunK: k, night: clamp01(Math.abs(k - 0.5) * 2.4 - 0.9), travel: walkTravel(t, 0, 3.0), camel: walking(t, { walk: t * 9 }) };
     },
     overlay: ({ t }) => <DayCounter t={t} start={cue.food} /> },
-  { name: "35 kilos of fat in the hump (x-ray)", t: cue.pack, a: S(HUMP, 4.0, 25, 10), b: S(HUMP, 3.3, 46, 14), punch: [cue.kilos],
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, hump: lerp(1, 1.35, ramp(t, cue.packW, 0.8)), fat: ramp(t, cue.packW, 1.0) }) }),
+  { name: "pack 35 kg of fat: chunks fly into the hump (crane up)", t: cue.pack, a: S(HUMP, 4.6, 10, 6), b: S(HUMP, 3.4, 60, 32), punch: [cue.kilos],
+    world: ({ t }) => {
+      const h = lerp(1, 1.35, ramp(t, cue.packW, 1.4));
+      return { sunK: 0.45, camel: standing(t, { xray: true, hump: h, fat: ramp(t, cue.packW, 1.4) }), extra: <FatChunks progress={(t - cue.packW) / 1.4} humpY={2.2 + 0.15 * (h - 1)} /> };
+    },
     overlay: ({ t }) => t > cue.kilos && <BigLabel text="35 kg" appear={cue.kilos} /> },
-  { name: "not water, fat", t: cue.notWater, a: S([-0.05, 2.3, 0], 3.2, 10, 8), b: S([-0.05, 2.3, 0], 2.8, -15, 8), punch: [cue.fat],
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, hump: 1.35, fat: 1 }) }),
+  { name: "into one big hump (orbit, jiggle)", t: cue.oneBig, a: S(HUMP, 3.4, 60, 32), b: S(HUMP, 3.1, 140, 14),
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, hump: 1.35, fat: 1, humpWobble: 0.5 }) }),
+    overlay: () => <BigLabel text="35 kg" appear={cue.kilos} /> },
+  { name: "not water, FAT (hump wobbles)", t: cue.notWater, a: S([-0.05, 2.3, 0], 3.5, 10, 8), b: S([-0.05, 2.3, 0], 2.9, -45, 10), punch: [cue.fat],
+    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, hump: 1.35, fat: 1, humpWobble: t > cue.fat ? 1 : 0.2 }) }),
     overlay: ({ t }) => <NotWater t={t} water={cue.water} fat={cue.fat} /> },
-  { name: "rest of the body cools off (heat leaves)", t: cue.keeping, a: S(BODY, 8.6, 40, 12), b: S(BODY, 7.4, 70, 14),
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { hump: 1.35, heat: -0.65 * ramp(t, cue.coolOff - 0.6, 0.8) }),
-      extra: <HeatArrows t={t} center={[0.3, 2.0, 0.45]} amount={ramp(t, cue.keeping + 0.3, 0.4)} color="#ffb03a" spread={1.8} /> }) },
+  { name: "rest of the body cools off (walking orbit)", t: cue.keeping, a: S(BODY, 8.2, 55, 10), b: S(BODY, 6.8, 130, 14),
+    world: ({ t }) => ({ sunK: 0.45, travel: walkTravel(t, 0), camel: walking(t, { hump: 1.35, heat: -0.65 * ramp(t, cue.coolOff - 0.6, 0.8) }),
+      extra: <HeatArrows t={t} center={[-0.05, 2.75, 0]} amount={ramp(t, cue.keeping + 0.3, 0.4)} color="#ffb03a" spread={0.6} /> }) },
 
-  // ---------- BLOOD
-  { name: "days with nothing to drink (droopy, harsh sun)", t: cue.days, a: S(HEAD, 5.0, 30, 4), b: S(BODY, 8.5, 20, 6),
-    world: ({ t }) => ({ sunK: 0.5, camel: standing(t, { hump: 1.15, headDown: 0.18 + 0.05 * Math.sin(t * 2), heat: 0.4 }) }) },
-  { name: "blood thickens (inside a vessel)", t: cue.blood, a: S(VESSEL, 3.0, -78, 6), b: S(VESSEL, 2.6, -70, 4),
+  // ---------- THIRST
+  { name: "days with nothing to drink: trudging, empty bottle rolls by", t: cue.days, a: S(BODY, 7.2, 25, 3), b: S(BODY, 5.8, 62, 6),
+    world: ({ t }) => ({ sunK: 0.5, travel: walkTravel(t, 0, 0.35), camel: walking(t, { walk: t * 2.4, walkAmt: 0.6, hump: 1.1, headDown: 0.2, heat: 0.35 }),
+      extra: <RollingBottle x={lerp(3.5, -3.5, ramp(t, cue.days + 0.2, 1.9))} z={1.4} /> }) },
+  { name: "blood thickens (inside a vessel)", t: cue.blood, a: S(VESSEL, 3.0, -80, 6), b: S(VESSEL, 2.5, -66, 2),
     world: () => ({ vessel: { oval: 0, thick: 1, water: 0, swell: 0 } }) },
-  { name: "oval cells keep flowing (camera rides along)", t: cue.cells, a: S(VESSEL, 2.6, -70, 4), b: S(add3(VESSEL, [2, 0, 0]), 2.4, -60, 2), glide: 0.2,
-    track: ({ t }) => add3(VESSEL, [(t - cue.cells) * 0.6, 0, 0]),
+  { name: "oval cells keep flowing (camera rides along)", t: cue.cells, a: S(VESSEL, 2.5, -66, 2), b: S(add3(VESSEL, [2, 0, 0]), 2.2, -50, 4), glide: 0.2,
+    track: ({ t }) => add3(VESSEL, [(t - cue.cells) * 0.8, 0, 0]),
     world: ({ t }) => ({ vessel: { oval: ramp(t, cue.oval - 0.1, 0.5), thick: 1 - ramp(t, cue.oval, 0.6), water: 0, swell: 0 } }) },
-  { name: "swell without bursting (water floods in)", t: cue.swell, a: S(VESSEL, 2.4, -60, 2), b: S(VESSEL, 1.8, -50, 4), punch: [cue.swellW],
+  { name: "swell without bursting (water floods in)", t: cue.swell, a: S(VESSEL, 2.4, -60, 2), b: S(VESSEL, 1.7, -40, 6), punch: [cue.swellW],
     world: ({ t }) => ({ vessel: { oval: 1, thick: 0, water: ramp(t, cue.swell, 0.5), swell: ramp(t, cue.swellW, 0.6) } }) },
-  { name: "drink 100 litres in minutes (belly fills)", t: cue.finally, a: S(BODY, 7.2, 20, 6), b: S(BODY, 6.0, 36, 6), punch: [cue.hundred],
-    world: ({ t }) => ({ sunK: 0.45, camel: standing(t, { xray: true, belly: ramp(t, cue.finally + 0.3, 1.6), hump: 1.2, fat: 1 }) }),
+  { name: "drink 100 litres: gulps down the neck, belly fills", t: cue.finally, a: S(BODY, 7.4, 5, 6), b: S(BODY, 5.4, 70, 8), punch: [cue.hundred],
+    world: ({ t }) => {
+      const fill = ramp(t, cue.finally + 0.3, 2.2);
+      return { sunK: 0.45, camel: standing(t, { xray: true, belly: fill, hump: 1.2, fat: 1, headDown: 0.12 + 0.06 * Math.sin(t * 7) }), extra: <Gulps t={t} on={1} fill={fill} /> };
+    },
     overlay: ({ t }) => <LitreCounter t={t} start={cue.finally + 0.3} /> },
 
   // ---------- ENDING + OASIS GAG
-  { name: "congratulations: walk to the oasis", t: cue.congrats, a: S([2.4, 1.5, -0.3], 12, 36, 8), b: S([3.4, 1.2, -0.4], 9.0, 14, 6),
+  { name: "congratulations: walk to the oasis", t: cue.congrats, a: S([2.4, 1.5, -0.3], 12, 40, 8), b: S([3.4, 1.2, -0.4], 9.0, 10, 6),
     world: ({ t }) => {
       const k = ramp(t, cue.congrats, Math.max(0.6, GAG - 0.4 - cue.congrats));
       return { sunK: 0.42, oasisWater: 1, camel: standing(t, { pos: [lerp(0, 2.55, k), 0, lerp(0, -0.6, k)], walk: t * 4, walkAmt: k < 0.98 ? 1 : 0, headDown: ramp(t, GAG - 0.45, 0.4), look: t < cue.camelW ? ramp(t, cue.congrats, 0.3) : 1 - ramp(t, cue.camelW, 0.3) }) };
@@ -340,7 +379,7 @@ const cameraAt = (i: number, t: number, ctx: Ctx): CamOut => {
     const g = clamp01((t - s.t) / s.glide);
     if (g < 1) spec = lerpSpec(SHOTS[i - 1].b, spec, easeInOut(g));
   }
-  spec = { ...spec, yaw: spec.yaw + 1.4 * Math.sin(t * 0.6) + 0.6 * Math.sin(t * 1.3 + 2), pitch: spec.pitch + 0.7 * Math.sin(t * 0.8 + 1) };
+  spec = { ...spec, yaw: spec.yaw + 2.4 * Math.sin(t * 0.7) + 1.0 * Math.sin(t * 1.6 + 2), pitch: spec.pitch + 1.3 * Math.sin(t * 0.9 + 1) };
   const pb = (s.punch ?? []).reduce((m, pt) => Math.max(m, bump(t - pt)), 0);
   spec = { ...spec, f: spec.f * (1 - 0.16 * pb) };
   let tg = spec.tg;
@@ -401,6 +440,8 @@ export const CamelVideo: React.FC = () => {
             <Sun k={sunK} night={night} />
             <Stars night={night} />
             <Oasis water={w.oasisWater ?? 1} t={t} />
+            <Dressing shift={-(w.travel ?? 0)} />
+            {(w.travel !== undefined || w.footprints !== undefined) && <Footprints travel={w.travel ?? 0} />}
             {w.bottle && <Bottle {...w.bottle} />}
             {w.camel && <DetailedCamel rig={rig} {...w.camel} />}
             {w.storm && <Sandstorm t={t} {...w.storm} />}

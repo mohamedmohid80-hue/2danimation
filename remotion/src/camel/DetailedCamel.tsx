@@ -107,8 +107,14 @@ export type { Rig };
 
 export const DetailedCamel: React.FC<CamelState & { rig: Rig | null }> = ({ rig,
   pos = [0, 0, 0], rotY = 0, grow = 1, walk = 0, walkAmt = 0, sink = 0, padSpread = 0, nostrils = 1, lashGlow = 0, heat = 0,
-  xray, kidneySqueeze = 0, kidneyGlow = 0, hump = 1, fat = 0, belly = 0, headDown = 0, look = 0, blink = 0,
+  xray, kidneySqueeze = 0, kidneyGlow = 0, hump: humpBase = 1, fat = 0, belly = 0, headDown = 0, look: lookBase = 0, blink = 0,
+  t = 0, shake = 0, humpWobble = 0,
 }) => {
+  // idle life: the camel is never frozen
+  const hump = humpBase + humpWobble * 0.12 * Math.sin(t * 19);
+  const look = lookBase + 0.08 * Math.sin(t * 0.9) * (1 - lookBase);
+  const sway = 0.05 * Math.sin(t * 1.7) + 0.05 * Math.sin(walk * 2) * walkAmt;
+  const breathe = 1 + 0.012 * Math.sin(t * 2.3);
   if (!rig || grow <= 0.01) return null;
 
   // ---- pose the mesh
@@ -168,14 +174,14 @@ export const DetailedCamel: React.FC<CamelState & { rig: Rig | null }> = ({ rig,
   // head follows the neck tip
   const [h1x, h1y] = rot2(HEAD_ANCHOR.x, HEAD_ANCHOR.y, NECK_BASE.x, NECK_BASE.y, aBase);
   const [hx, hy] = rot2(h1x, h1y, mx, my, aMid);
-  const headRot = -0.15 + aBase + aMid;
+  const headRot = -0.15 + aBase + aMid + sway;
 
   const g = 1 - Math.pow(1 - grow, 3);
   const bob = Math.sin(walk * 2) * 0.04 * walkAmt;
   const dip = -0.22 * headDown; // front settles a little while drinking
   const furHead = heat >= 0 ? new THREE.Color("#9a5e2e").lerp(new THREE.Color(COL.hot), heat * 0.6) : new THREE.Color("#9a5e2e").lerp(new THREE.Color(COL.cool), -heat * 0.6);
   return (
-    <group position={[pos[0], pos[1] + (1 - g) * -2.6 - 0.32 * sink + bob + dip, pos[2]]} rotation={[0, rotY, 0]} scale={[1, 0.3 + 0.7 * g, 1]}>
+    <group position={[pos[0], pos[1] + (1 - g) * -2.6 - 0.32 * sink + bob + dip, pos[2]]} rotation={[shake * 0.07 * Math.sin(t * 30), rotY + shake * 0.05 * Math.sin(t * 23), 0]} scale={[1, (0.3 + 0.7 * g) * breathe, breathe]}>
       <primitive object={rig.root} />
       <group position={[hx, hy, 0]} rotation={[0, look * 0.9, headRot]} scale={1.15}>
         <CamelHead color={xray ? "#bfe6ff" : furHead.getStyle()} dark="#7a4520" opacity={xray ? 0.22 : 1} nostrils={nostrils} lashGlow={lashGlow} blink={blink} />
