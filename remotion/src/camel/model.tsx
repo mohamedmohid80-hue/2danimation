@@ -235,26 +235,75 @@ export const CamelHead: React.FC<{ color: string; dark: string; opacity?: number
       <Ell key={z} pos={[0.37, 0.0, z]} r={[0.012, 0.022 * Math.max(0.08, nostrils), 0.01]} color="#2a1a10" />
     ))}
     {[1, -1].map((s) => (
-      <group key={s} position={[0.06, 0.07, 0.13 * s]}>
-        <mesh scale={[1, Math.max(0.1, 1 - blink), 1]}>
-          <sphereGeometry args={[0.04, 16, 12]} />
-          <meshStandardMaterial color="#120c08" roughness={0.15} />
-        </mesh>
-        {[0, 1].map((row) =>
-          Array.from({ length: 7 }, (_, k) => {
-            const a = -0.7 + k * 0.23;
-            return (
-              <mesh key={`${row}-${k}`} position={[Math.cos(a) * 0.045 + 0.005, 0.03 + row * 0.012, 0.012 * s]} rotation={[0, 0, a + Math.PI / 2 - 0.3]}>
-                <cylinderGeometry args={[0.003, 0.002, 0.045 + row * 0.01, 4]} />
-                <meshStandardMaterial color={lashGlow > 0 ? mix("#2a1a10", "#ffe14d", lashGlow) : "#2a1a10"} emissive={lashGlow > 0 ? "#ffe14d" : "#000"} emissiveIntensity={lashGlow} />
-              </mesh>
-            );
-          }),
-        )}
-      </group>
+      <Eye key={s} side={s} dark={dark} lashGlow={lashGlow} blink={blink} />
     ))}
   </group>
 );
+
+/** One lash: two thin tapered segments, the tip curling up and outward. */
+const Lash: React.FC<{ base: THREE.Vector3; dir: THREE.Vector3; len: number; w: number; color: string; glow: number; curl?: THREE.Vector3 }> = ({ base, dir, len, w, color, glow, curl }) => {
+  const d1 = dir.clone().normalize();
+  const d2 = d1.clone().add((curl ?? new THREE.Vector3(0, 1, 0)).clone().multiplyScalar(0.9)).normalize();
+  const l1 = len * 0.55, l2 = len * 0.5;
+  const mid = base.clone().add(d1.clone().multiplyScalar(l1));
+  const seg = (from: THREE.Vector3, d: THREE.Vector3, l: number, r0: number, r1: number, key: string) => (
+    <mesh key={key} position={from.clone().add(d.clone().multiplyScalar(l / 2))} quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d)}>
+      <cylinderGeometry args={[r1, r0, l, 5]} />
+      <meshStandardMaterial color={color} roughness={0.55} emissive={glow > 0 ? "#ffcf6b" : "#000"} emissiveIntensity={glow * 0.35} />
+    </mesh>
+  );
+  return <group>{seg(base, d1, l1, w, w * 0.7, "a")}{seg(mid, d2, l2, w * 0.7, w * 0.25, "b")}</group>;
+};
+
+/**
+ * Camel eye on the side of the head: glossy dark eye with a catch-light, a heavy upper lid,
+ * a DOUBLE row of long lashes fanned along the upper lid and short lashes on the lower lid.
+ * Lashes fan outward from the lid rim (side = +1 / -1 for the head's two sides).
+ */
+const Eye: React.FC<{ side: number; dark: string; lashGlow: number; blink: number }> = ({ side: s, dark, lashGlow, blink }) => {
+  const R = 0.044;
+  const lashCol = lashGlow > 0 ? mix("#2a180c", "#6b4420", lashGlow * 0.6) : "#2a180c";
+  const out = new THREE.Vector3(0, 0, s); // outward from the head side
+  const lashes: React.ReactNode[] = [];
+  // upper lid: two rows (outer longer, inner shorter), angles run from the front corner (toward the nose, +x) to the back
+  [{ n: 13, r: 1.06, len: 0.062, w: 0.0028, lift: 0.55 }, { n: 11, r: 0.97, len: 0.046, w: 0.0024, lift: 0.9 }].forEach((row, ri) => {
+    for (let k = 0; k < row.n; k++) {
+      const a = (-70 + (140 * k) / (row.n - 1)) * (Math.PI / 180) + ri * 0.06;
+      const rim = new THREE.Vector3(Math.sin(a) * R * row.r, Math.cos(a) * R * row.r, R * 0.45 * s);
+      const radial = new THREE.Vector3(Math.sin(a), Math.cos(a), 0);
+      const dir = radial.multiplyScalar(0.9).add(out.clone().multiplyScalar(row.lift)).add(new THREE.Vector3(0, 0.35, 0));
+      const len = row.len * (0.75 + 0.25 * Math.cos(a)); // longest in the middle of the lid
+      lashes.push(<Lash key={`u${ri}-${k}`} base={rim} dir={dir} len={len} w={row.w} color={lashCol} glow={lashGlow} curl={new THREE.Vector3(0, 0.8, 0.4 * s)} />);
+    }
+  });
+  // lower lid: short sparse lashes pointing down/out
+  for (let k = 0; k < 7; k++) {
+    const a = (180 - 50 + (100 * k) / 6) * (Math.PI / 180);
+    const rim = new THREE.Vector3(Math.sin(a) * R, Math.cos(a) * R, R * 0.45 * s);
+    const dir = new THREE.Vector3(Math.sin(a), Math.cos(a), 0).add(out.clone().multiplyScalar(0.7));
+    lashes.push(<Lash key={`l${k}`} base={rim} dir={dir} len={0.024} w={0.0022} color={lashCol} glow={lashGlow} curl={new THREE.Vector3(0, -0.6, 0.4 * s)} />);
+  }
+  const lid = Math.max(0.12, 1 - blink);
+  return (
+    <group position={[0.06, 0.07, 0.13 * s]}>
+      {/* glossy eye + catch-light */}
+      <mesh scale={[1, lid, 1]}>
+        <sphereGeometry args={[R, 24, 18]} />
+        <meshStandardMaterial color="#120c08" roughness={0.08} />
+      </mesh>
+      <mesh position={[0.012, 0.016 * lid, R * 0.92 * s]}>
+        <sphereGeometry args={[0.0055, 10, 8]} />
+        <meshBasicMaterial color="#ffffff" />
+      </mesh>
+      {/* heavy upper eyelid (top cap of a slightly bigger sphere), drops when blinking */}
+      <mesh rotation={[0, 0, 0]} position={[0, 0.004 - blink * 0.03, 0]} scale={[1.12, 1.12, 1.12]}>
+        <sphereGeometry args={[R, 24, 12, 0, Math.PI * 2, 0, Math.PI * (0.32 + 0.3 * blink)]} />
+        <meshStandardMaterial color={dark} roughness={0.8} />
+      </mesh>
+      <group position={[0, -blink * 0.03, 0]}>{lashes}</group>
+    </group>
+  );
+};
 
 /** Smooth tapered neck: tube along a spline, thicker at the shoulders. */
 const Neck: React.FC<{ pts: V3[]; color: string; opacity: number }> = ({ pts, color, opacity }) => {
