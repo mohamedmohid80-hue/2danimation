@@ -5,6 +5,7 @@ import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import rawWords from "../data/sloth_words.json";
 import { Captions, fontFamily } from "../wp/captions";
+import { LowPoly } from "./LowPoly";
 import {
   DirtSpray, Eagle, FurMacro, Hole, Jaguar, MACRO, Moth, MothLife, Poop, Rainforest, Sloth, SlothPose, TRUNK_R, V3, clamp01, onTrunk, rnd, slothZ, trunkGrip,
 } from "./model";
@@ -410,7 +411,7 @@ const CameraRig: React.FC<{ cam: CamOut }> = ({ cam }) => {
 
 export const SLOTH_SHOTS = SHOTS.map((s, i) => ({ name: s.name, t: s.t, end: shotEnd(i) }));
 
-export const SlothVideo: React.FC = () => {
+export const SlothVideo: React.FC<{ lowPoly?: boolean }> = ({ lowPoly = false }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const t = frame / FPS;
@@ -443,6 +444,7 @@ export const SlothVideo: React.FC = () => {
             {w.extra}
           </>
         )}
+        {lowPoly && <LowPoly />}
       </ThreeCanvas>
       <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, rgba(0,0,0,0) ${55 - (w.dark ?? 0) * 25}%, rgba(0,0,0,${0.22 + (w.dark ?? 0) * 0.5}) 100%)` }} />
       {sc.overlay?.(ctx)}
