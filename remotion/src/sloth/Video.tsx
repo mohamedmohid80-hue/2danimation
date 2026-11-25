@@ -6,7 +6,7 @@ import * as THREE from "three";
 import rawWords from "../data/sloth_words.json";
 import { Captions, fontFamily } from "../wp/captions";
 import {
-  DirtSpray, Eagle, FurMacro, Hole, Jaguar, MACRO, Moth, MothLife, Poop, Rainforest, Sloth, SlothPose, TRUNK_R, V3, clamp01, onTrunk, rnd, trunkGrip,
+  DirtSpray, Eagle, FurMacro, Hole, Jaguar, MACRO, Moth, MothLife, Poop, Rainforest, Sloth, SlothPose, TRUNK_R, V3, clamp01, onTrunk, rnd, slothZ, trunkGrip,
 } from "./model";
 
 export const FPS = 30;
@@ -61,10 +61,12 @@ const specPos = (s: Spec): V3 => {
 // sloth focus points for a body height y
 const TOP = 9.0;
 const BOT = 0.55;
-const BODY = (y: number): V3 => [0, y + 0.1, TRUNK_R + 0.32];
-const FACE = (y: number): V3 => [0, y + 0.55, TRUNK_R + 0.4];
-const HOLE: V3 = [0, 0, TRUNK_R + 0.42];
-const BELLY = (y: number): V3 => [0, y, TRUNK_R + 0.32];
+const BODY = (y: number): V3 => [0, y + 0.1, slothZ(y)];
+const FACE = (y: number): V3 => [0, y + 0.55, slothZ(y) + 0.08];
+const clawAt = (y: number): V3 => { const r = trunkGripR(y + 0.72); return [Math.sin(0.72) * r, y + 0.72, Math.cos(0.72) * r]; };
+const trunkGripR = (y: number) => slothZ(y) - 0.3 + 0.035;
+const HOLE: V3 = [0, 0, slothZ(0.55) + 0.1];
+const BELLY = (y: number): V3 => [0, y, slothZ(y)];
 
 // ---------------------------------------------------------------- sloth pose helpers
 type Extra = Partial<SlothPose>;
@@ -79,7 +81,7 @@ const idle = (t: number, y: number, extra: Extra = {}) => pose(t, y, 0.05 * Math
 /** hand brought to the mouth (eating) */
 const eating = (t: number, y: number, k: number, extra: Extra = {}) => {
   const p = idle(t, y, extra);
-  const mouth: V3 = [0.12, y + 0.48, TRUNK_R + 0.62];
+  const mouth: V3 = [0.12, y + 0.48, slothZ(y) + 0.3];
   p.hands = [p.hands[0], lerp3(p.hands[1], mouth, k)];
   return p;
 };
@@ -112,7 +114,7 @@ const SHOTS: Shot[] = [
   // ---------- SAFE IN THE TREES
   { name: "up in the trees: orbit the sloth", t: cue.upTrees, a: S(BODY(TOP), 5.5, -40, 10), b: S(BODY(TOP), 4.4, 30, 4),
     world: ({ t }) => ({ sloth: idle(t, TOP) }) },
-  { name: "impossible to catch: claws grip tight (macro)", t: cue.catch1 - 0.5, a: S([0.43, TOP + 0.42, 0.33], 1.1, 55, 10), b: S([0.43, TOP + 0.42, 0.33], 0.85, 85, 16), punch: [cue.catch1],
+  { name: "impossible to catch: claws grip tight (macro)", t: cue.catch1 - 0.5, a: S(clawAt(TOP), 1.1, 55, 10), b: S(clawAt(TOP), 0.85, 85, 16), punch: [cue.catch1],
     world: ({ t }) => ({ sloth: idle(t, TOP) }) },
   { name: "it moves so slowly: one arm reaches in slow motion", t: cue.moves, a: S(BODY(TOP), 3.2, 50, 4), b: S(BODY(TOP), 2.8, 70, 6),
     world: ({ t }) => ({ sloth: pose(t, TOP, 0.12 * ramp(t, cue.moves, 2.0)) }),
@@ -139,7 +141,7 @@ const SHOTS: Shot[] = [
   // ---------- DIGESTION
   { name: "a diet of leaves: sloth munches a leaf", t: cue.diet, a: S(FACE(TOP), 1.9, -25, 4), b: S(FACE(TOP), 1.3, 15, 2),
     world: ({ t }) => ({ sloth: eating(t, TOP, ramp(t, cue.diet, 0.6), { mouth: Math.abs(Math.sin(t * 9)) * ramp(t, cue.leaves, 0.2), look: 0.8 }),
-      extra: <Leaf pos={[0.12, TOP + 0.5, TRUNK_R + 0.68]} t={t} bite={ramp(t, cue.leaves, 1.0)} /> }) },
+      extra: <Leaf pos={[0.12, TOP + 0.5, slothZ(TOP) + 0.36]} t={t} bite={ramp(t, cue.leaves, 1.0)} /> }) },
   { name: "takes weeks to digest (x-ray stomach churning)", t: cue.takes, a: S(BELLY(TOP), 2.6, 30, 4), b: S(BELLY(TOP), 1.8, -10, 4), glide: 0.25,
     world: ({ t }) => ({ sloth: idle(t, TOP, { xray: true, stomach: 0.3 }) }) },
   { name: "holds it in for 7 days (day counter, stomach swells)", t: cue.holds, a: S(BELLY(TOP), 2.2, -20, 6), b: S(BELLY(TOP), 1.7, 45, 8), punch: [cue.seven],

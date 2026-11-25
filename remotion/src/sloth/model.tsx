@@ -243,7 +243,13 @@ export const Sloth: React.FC<SlothPose> = ({
         return (
           <group key={i}>
             <Limb pts={[l.s, l.s.clone().lerp(e, 0.5).add(outward.clone().multiplyScalar(0.02)), e, e.clone().lerp(l.t, 0.5), l.t]} r0={l.r0} r1={l.r1} color={xray ? "#bfe6ff" : fur} opacity={op} />
-            <Claws at={l.t} dir={dir} color={COLS.claw} len={i < 2 ? 0.14 : 0.11} />
+            {/* rounded paw at the end of the limb */}
+            <mesh position={l.t} scale={[0.065, 0.055, 0.065]}>
+              <sphereGeometry args={[1, 16, 12]} />
+              <meshStandardMaterial key={xray ? "t" : "o"} color={xray ? "#bfe6ff" : furDark} roughness={1} transparent={!!xray} opacity={op} />
+            </mesh>
+            {/* claws hook over the bark: inward toward the trunk and down */}
+            <Claws at={l.t.clone().add(new THREE.Vector3(l.t.x, 0, l.t.z).normalize().multiplyScalar(0.03))} dir={new THREE.Vector3(-l.t.x, 0, -l.t.z).normalize().multiplyScalar(0.35).add(new THREE.Vector3(0, -0.6, 0)).add(new THREE.Vector3(l.t.z, 0, -l.t.x).normalize().multiplyScalar(0.25 * Math.sign(l.t.x || 1)))} color={COLS.claw} len={i < 2 ? 0.14 : 0.11} />
           </group>
         );
       })}
@@ -252,6 +258,14 @@ export const Sloth: React.FC<SlothPose> = ({
 };
 
 /** Grip targets on the trunk at a body height; climbing phase d (metres descended). */
+/** Outer radius of the trunk mesh at world height y (taper + bark bumps + root flare), so limbs sit ON the bark. */
+export const trunkR = (y: number) => {
+  const taper = TRUNK_R * (1.35 - 0.35 * (y / 30));
+  return taper * (1.07 + Math.max(0, 1.2 - y) * 0.35);
+};
+/** Distance of the sloth's body centre from the trunk axis. */
+export const slothZ = (y: number) => trunkR(y) + 0.3;
+
 export const trunkGrip = (bodyY: number, d: number, side = 1): { hands: [V3, V3]; feet: [V3, V3] } => {
   const stride = 0.34;
   const L = stride / 0.7;
@@ -264,16 +278,17 @@ export const trunkGrip = (bodyY: number, d: number, side = 1): { hands: [V3, V3]
       rel = stride * (0.5 - q);
       lift = Math.sin(q * Math.PI) * 0.12;
     }
-    const r = TRUNK_R + 0.03 + lift;
-    return [Math.sin(ang) * r * side, bodyY + base + rel, Math.cos(ang) * r];
+    const y = bodyY + base + rel;
+    const r = trunkR(y) + 0.035 + lift;
+    return [Math.sin(ang) * r * side, y, Math.cos(ang) * r];
   };
   return {
-    hands: [limb(0.42, 0.95, 0), limb(0.42, -0.95, 0.5)],
-    feet: [limb(-0.45, 0.85, 0.5), limb(-0.45, -0.85, 0)],
+    hands: [limb(0.72, 0.72, 0), limb(0.72, -0.72, 0.5)],
+    feet: [limb(-0.5, 0.7, 0.5), limb(-0.5, -0.7, 0)],
   };
 };
 /** Body placement for a sloth hugging the trunk (+z side) at height y. */
-export const onTrunk = (y: number): { pos: V3; rot: V3 } => ({ pos: [0, y, TRUNK_R + 0.32], rot: [0, Math.PI, 0] });
+export const onTrunk = (y: number): { pos: V3; rot: V3 } => ({ pos: [0, y, slothZ(y)], rot: [0, Math.PI, 0] });
 
 // ------------------------------------------------------------------ moth
 export const Moth: React.FC<{ pos: V3; flap: number; scale?: number; heading?: number }> = ({ pos, flap, scale = 1, heading = 0 }) => {
@@ -304,7 +319,7 @@ export const Rainforest: React.FC<{ t: number }> = ({ t }) => {
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
       const a = Math.atan2(z, x);
-      const k = 1 + 0.05 * Math.sin(a * 13 + Math.sin(y * 0.8) * 2) + 0.02 * Math.sin(a * 37 + y * 3) + (y < -13 ? (-13 - y) * 0.25 * (0.5 + 0.5 * Math.sin(a * 5)) : 0);
+      const k = 1 + 0.05 * Math.sin(a * 13 + Math.sin(y * 0.8) * 2) + 0.02 * Math.sin(a * 37 + y * 3) + (y < -13.8 ? (-13.8 - y) * 0.35 * (0.5 + 0.5 * Math.sin(a * 5)) : 0);
       p.setX(i, x * k);
       p.setZ(i, z * k);
     }
@@ -410,7 +425,15 @@ export const Rainforest: React.FC<{ t: number }> = ({ t }) => {
 // ------------------------------------------------------------------ predators
 export const Jaguar: React.FC<{ pos: V3; heading: number; walk: number; crouch?: number; eyesOnly?: number }> = ({ pos, heading, walk, crouch = 0, eyesOnly = 0 }) => {
   const c = "#d9a043";
-  const spots = useMemo(() => Array.from({ length: 40 }, (_, i) => [(rnd(i, 1) - 0.5) * 1.2, 0.15 + rnd(i, 2) * 0.2, (rnd(i, 3) > 0.5 ? 1 : -1) * (0.2 + rnd(i, 4) * 0.06)] as V3), []);
+  // rosettes on the ellipsoid body surface (radii 0.65, 0.24, 0.22 centred at y 0.55), oriented along the surface normal
+  const spots = useMemo(() => Array.from({ length: 46 }, (_, i) => {
+    const u = (rnd(i, 1) - 0.5) * 1.7; // along the body
+    const ph = (rnd(i, 2) - 0.5) * Math.PI * 1.5 + (rnd(i, 3) > 0.5 ? 0 : Math.PI); // around it (skip the belly)
+    const s = Math.sqrt(Math.max(0, 1 - u * u));
+    const p = new THREE.Vector3(0.65 * u, 0.55 + 0.24 * Math.cos(ph) * s, 0.22 * Math.sin(ph) * s);
+    const n = new THREE.Vector3(u / 0.65, (Math.cos(ph) * s) / 0.24, (Math.sin(ph) * s) / 0.22).normalize();
+    return { p: p.add(n.clone().multiplyScalar(0.004)), q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), r: 0.035 + rnd(i, 4) * 0.025 };
+  }).filter((sp) => sp.p.y > 0.42), []);
   if (eyesOnly > 0.5) {
     return (
       <group position={pos} rotation={[0, heading, 0]}>
@@ -427,12 +450,14 @@ export const Jaguar: React.FC<{ pos: V3; heading: number; walk: number; crouch?:
   return (
     <group position={[pos[0], pos[1] - crouch * 0.15, pos[2]]} rotation={[0, heading, 0]}>
       <Ell pos={[0, 0.55, 0]} r={[0.65, 0.24, 0.22]} color={c} />
-      {spots.map((s, i) => (
-        <mesh key={i} position={[s[0], 0.55 + s[1] - 0.15, s[2]]} scale={[0.05, 0.05, 0.01]} rotation={[0, s[2] > 0 ? 0 : Math.PI, 0]}>
-          <sphereGeometry args={[1, 8, 6]} />
-          <meshStandardMaterial color="#2a1a0a" />
+      {spots.map((sp, i) => (
+        <mesh key={i} position={sp.p} quaternion={sp.q}>
+          <circleGeometry args={[sp.r, 14]} />
+          <meshStandardMaterial color="#2a1a0a" roughness={0.9} />
         </mesh>
       ))}
+      {/* neck joining head and body */}
+      <Ell pos={[0.5, 0.64 - crouch * 0.05, 0]} r={[0.22, 0.17, 0.16]} rot={[0, 0, -0.4]} color={c} />
       {/* head */}
       <group position={[0.68, 0.68 - crouch * 0.1, 0]}>
         <Ell pos={[0, 0, 0]} r={[0.2, 0.17, 0.18]} color={c} />
