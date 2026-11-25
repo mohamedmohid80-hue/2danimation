@@ -1,7 +1,7 @@
-# Ending gag: the climb back up (no narration)
+# Ending gag: the moth lands on your screen (no narration)
 
-After "Pretty gross. Pretty genius.":
-1. Sloth turns and starts climbing back up the trunk. Slowly.
-2. Card slams in: "3 HOURS LATER".
-3. Same shot: the sloth has moved about 30 cm. It looks at the camera, blinks slowly.
+On / right after "Pretty genius.":
+1. One of the moths lifts off the sloth's fur and flies straight at the camera.
+2. It lands on the screen, life-size, as if it's sitting on the viewer's phone.
+3. It twitches its wings and crawls a little (~1 s hold).
 4. Hard cut.
