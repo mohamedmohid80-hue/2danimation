@@ -9,7 +9,7 @@ import { Icon } from "./brand/Icons";
 
 export const Root = () => (
   <>
-    <Composition id="Sloth" component={SlothVideo} width={1080} height={1920} fps={30} durationInFrames={SLOTH_FRAMES} />
+    <Composition id="Sloth" component={SlothVideo} width={1080} height={1920} fps={30} durationInFrames={SLOTH_FRAMES} defaultProps={{ lowPoly: true }} />
     <Composition id="CamelMock" component={CamelMock} width={1080} height={1920} fps={30} durationInFrames={1} />
     <Composition id="Camel" component={CamelVideo} width={1080} height={1920} fps={30} durationInFrames={CAMEL_FRAMES} />
     <Composition id="Icon" component={Icon} width={800} height={800} fps={30} durationInFrames={1} defaultProps={{ kind: "bulb" }} />

@@ -440,7 +440,7 @@ export const SlothVideo: React.FC<{ lowPoly?: boolean }> = ({ lowPoly = false })
         ) : (
           <>
             <Rainforest t={t} />
-            {w.sloth && <Sloth {...w.sloth} />}
+            {w.sloth && <Sloth {...w.sloth} tufts={!lowPoly} />}
             {w.extra}
           </>
         )}

@@ -99,6 +99,7 @@ export type SlothPose = {
   squish?: number; // 0..1 body thinner after the drop
   moths?: number; // how many moths visible on the fur (0..40)
   mothsLift?: number; // 0..1 moths taking off
+  tufts?: boolean; // spiky fur tufts (off for the low-poly look)
 };
 
 const SHOULDERS: V3[] = [[0.27, 0.3, 0.06], [-0.27, 0.3, 0.06]];
@@ -137,7 +138,7 @@ const Claws: React.FC<{ at: THREE.Vector3; dir: THREE.Vector3; color: string; le
 };
 
 export const Sloth: React.FC<SlothPose> = ({
-  pos, rot, hands, feet, look = 0, headTilt = 0, algae = 0.3, xray, stomach = 0, t = 0, blink = 0, mouth = 0, wiggle = 0, squish = 0, moths = 0, mothsLift = 0,
+  pos, rot, hands, feet, look = 0, headTilt = 0, algae = 0.3, xray, stomach = 0, t = 0, blink = 0, mouth = 0, wiggle = 0, squish = 0, moths = 0, mothsLift = 0, tufts = true,
 }) => {
   const bodyGeo = useShaggy(1.3, 0.1);
   const headGeo = useShaggy(4.1, 0.06);
@@ -165,7 +166,7 @@ export const Sloth: React.FC<SlothPose> = ({
           <meshStandardMaterial key={xray ? "t" : "o"} vertexColors color={xray ? "#bfe6ff" : fur} roughness={1} transparent={!!xray} opacity={op} depthWrite={!xray} />
         </mesh>
         {/* shaggy tufts on the back */}
-        {!xray &&
+        {!xray && tufts &&
           Array.from({ length: 46 }, (_, i) => {
             const th = rnd(i, 1) * Math.PI * 2, y = (rnd(i, 2) - 0.5) * 0.8;
             const r = Math.sqrt(Math.max(0, 1 - (y / 0.46) ** 2));
