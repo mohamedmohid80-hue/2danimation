@@ -204,7 +204,7 @@ const SHOTS: Shot[] = [
   { name: "pretty gross (pull back)", t: cue.gross, a: S(BODY(3.5), 2.0, -5, 4), b: S(BODY(3.5), 3.6, 30, 10),
     world: ({ t }) => ({ sloth: idle(t, 3.5, { look: 1, mouth: 0.6 }) }) },
   { name: "pretty genius: the full cycle diagram", t: cue.genius - 0.15, a: S(BODY(3.5), 3.6, 30, 10), b: S([0, 3.95, 0.82], 2.4, 10, 2),
-    world: ({ t }) => ({ sloth: idle(t, 3.5, { look: 1 }), extra: <Moth pos={lerp3([0.3, 3.9, 1.2], add3(specPos(S(BODY(3.5), 2.0, 10, 4)), [0, 0, 0]), ramp(t, GAG - 0.5, 0.5))} scale={1.6} flap={(t * 9) % 1} /> }),
+    world: ({ t }) => ({ sloth: idle(t, 3.5, { look: 1 }), extra: t < GAG - 0.25 ? <Moth pos={lerp3([0.3, 3.9, 1.2], [0.6, 4.1, 3.6], ramp(t, GAG - 0.9, 0.65))} scale={1.6} flap={(t * 9) % 1} /> : null }),
     overlay: ({ t }) => <><Cycle t={t} appear={cue.genius - 0.1} /><ScreenMoth t={t} land={GAG} /></> },
 ];
 
@@ -352,29 +352,51 @@ const Cycle: React.FC<{ t: number; appear: number }> = ({ t, appear }) => {
     </AbsoluteFill>
   );
 };
-/** Life-size moth that lands on the viewer's screen. */
+/** Life-size moth that lands ON the viewer's screen: huge, off-centre, hard shadow, background defocuses. */
 const ScreenMoth: React.FC<{ t: number; land: number }> = ({ t, land }) => {
-  if (t < land - 0.25) return null;
-  const k = easeOut(clamp01((t - land + 0.25) / 0.25));
-  const tw = t > land ? Math.sin((t - land) * 30) * 0.12 * (Math.sin((t - land) * 3) > 0 ? 1 : 0.2) : 0;
-  const crawl = clamp01((t - land - 0.5) / 1) * 30;
+  if (t < land - 0.3) return null;
+  const k = easeOut(clamp01((t - land + 0.3) / 0.3)); // swoop in
+  const after = Math.max(0, t - land);
+  const twitch = after > 0 ? Math.sin(after * 34) * 0.18 * Math.max(0, Math.sin(after * 2.4)) : 0;
+  const crawl = clamp01((after - 0.45) / 1.2);
+  const scale = 2.6 - 1.6 * k;
   return (
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-      <div style={{ transform: `translate(${crawl}px, ${-crawl * 0.6}px) scale(${3 - 2 * k}) rotate(-18deg)`, filter: `drop-shadow(12px 18px 10px rgba(0,0,0,${0.45 * k}))`, opacity: k }}>
-        <svg width="420" height="360" viewBox="0 0 140 120">
-          {[1, -1].map((s) => (
-            <g key={s} transform={`translate(70 60) scale(${s * (1 - Math.abs(tw))} 1)`}>
-              <path d="M2 -6 C24 -40 64 -42 66 -14 C68 6 40 10 4 2 Z" fill="#8a765c" stroke="#4a3c2c" strokeWidth="1.6" />
-              <path d="M2 2 C30 10 52 22 44 42 C36 56 14 40 2 10 Z" fill="#7a6650" stroke="#4a3c2c" strokeWidth="1.6" />
-              <circle cx="38" cy="-18" r="5" fill="#5a4a38" />
-              <path d="M20 -24 C34 -30 48 -30 56 -22" stroke="#a8967a" strokeWidth="1.4" fill="none" />
-            </g>
-          ))}
-          <ellipse cx="70" cy="62" rx="5" ry="22" fill="#4a3c2c" />
-          <path d="M68 42 C62 30 56 24 50 20 M72 42 C78 30 84 24 90 20" stroke="#4a3c2c" strokeWidth="1.6" fill="none" />
-        </svg>
-      </div>
-    </AbsoluteFill>
+    <>
+      {/* the scene behind goes out of focus as if your eye snapped to the glass */}
+      <AbsoluteFill style={{ backdropFilter: `blur(${5 * k}px)`, background: `rgba(0,0,0,${0.12 * k})` }} />
+      <AbsoluteFill>
+        <div style={{ position: "absolute", left: `${58 - 6 * crawl}%`, top: `${44 - 4 * crawl}%`, transform: `translate(-50%, -50%) scale(${scale}) rotate(${-28 + 6 * crawl}deg)`,
+          filter: `drop-shadow(${30 * k}px ${44 * k}px ${6 + 10 * (1 - k)}px rgba(0,0,0,${0.55 * k}))`, opacity: Math.min(1, k * 1.6) }}>
+          <svg width="760" height="640" viewBox="0 0 140 120">
+            {/* legs gripping the glass */}
+            {[-1, 1].map((s) => [0, 1, 2].map((j) => (
+              <path key={`${s}${j}`} d={`M70 ${52 + j * 8} q ${s * 10} ${2 + j * 2} ${s * 15} ${8 + j * 4}`} stroke="#3a2e22" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+            )))}
+            {[1, -1].map((s) => (
+              <g key={s} transform={`translate(70 56) scale(${s * (1 - Math.abs(twitch))} 1)`}>
+                <path d="M2 -6 C22 -44 66 -46 68 -16 C70 6 40 10 4 2 Z" fill="#8f7b60" stroke="#4a3c2c" strokeWidth="1.2" />
+                <path d="M2 2 C30 10 54 22 46 44 C38 58 14 42 2 10 Z" fill="#7d6950" stroke="#4a3c2c" strokeWidth="1.2" />
+                <path d="M10 -14 C28 -30 48 -32 60 -22" stroke="#b3a184" strokeWidth="1.2" fill="none" />
+                <path d="M8 -4 C26 -12 44 -12 60 -8" stroke="#6b5940" strokeWidth="1" fill="none" />
+                <circle cx="40" cy="-20" r="5.5" fill="#5a4a38" stroke="#c9b898" strokeWidth="1" />
+                <circle cx="30" cy="26" r="3.2" fill="#5a4a38" />
+              </g>
+            ))}
+            {/* fuzzy body */}
+            <ellipse cx="70" cy="58" rx="6.5" ry="24" fill="#5d4b38" />
+            {[0, 1, 2, 3, 4].map((j) => <path key={j} d={`M64 ${48 + j * 7} h12`} stroke="#4a3c2c" strokeWidth="1" />)}
+            <circle cx="70" cy="34" r="6" fill="#4a3c2c" />
+            {/* feathery antennae */}
+            {[1, -1].map((s) => (
+              <g key={s}>
+                <path d={`M${70 + s * 2} 30 C ${70 + s * 8} 18 ${70 + s * 16} 12 ${70 + s * 24} 8`} stroke="#3a2e22" strokeWidth="1.6" fill="none" />
+                {[0, 1, 2, 3, 4, 5].map((j) => <path key={j} d={`M${71 + s * (5 + j * 3.2)} ${24 - j * 2.6} l ${s * 2} -3`} stroke="#3a2e22" strokeWidth="0.9" />)}
+              </g>
+            ))}
+          </svg>
+        </div>
+      </AbsoluteFill>
+    </>
   );
 };
 
